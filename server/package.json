@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "node ./src/index.js",
-    "watch": "nodemon --exec npm run start",
+    "start": "cross-env NODE_ENV=production node dist/server",
+    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon dist/server\"",
     "lint": "eslint ./src",
     "test": "jest"
   },
@@ -14,8 +14,10 @@
     "@babel/preset-env": "^7.8.4",
     "@types/cors": "^2.8.17",
     "@types/dotenv": "^6.1.1",
+    "@types/express": "^5.0.0",
     "@types/morgan": "^1.9.9",
     "@types/node": "^22.10.5",
+    "concurrently": "^9.1.2",
     "eslint": "^6.8.0",
     "eslint-config-standard": "^14.1.0",
     "eslint-plugin-import": "^2.20.0",

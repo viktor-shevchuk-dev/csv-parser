@@ -1,7 +1,7 @@
 {
-  "name": "movie-gallery",
+  "name": "csv-parser",
   "version": "1.0.0",
-  "description": "Movies project.",
+  "description": "CSV API project.",
   "main": "index.js",
   "scripts": {
     "install-server": "cd server && npm install",
@@ -33,12 +33,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/viktor-shevchuk-dev/movie-gallery.git"
+    "url": "git+https://github.com/viktor-shevchuk-dev/csv-parser.git"
   },
   "bugs": {
-    "url": "https://github.com/viktor-shevchuk-dev/movie-gallery/issues"
+    "url": "https://github.com/viktor-shevchuk-dev/csv-parser/issues"
   },
-  "homepage": "https://github.com/viktor-shevchuk-dev/movie-gallery#readme",
+  "homepage": "https://github.com/viktor-shevchuk-dev/csv-parser#readme",
   "lint-staged": {
     "*.{js,mjs,jsx}": "eslint --cache --fix",
     "*.{js,mjs,jsx,ts,tsx,css,scss,md}": "prettier --write",
