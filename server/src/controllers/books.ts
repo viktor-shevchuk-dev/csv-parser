@@ -12,41 +12,41 @@ const getAll: RequestHandler = async (req, res, next) => {
   //   console.log("Parsed JSON:", jsonData);
   // });
 
-  const opts = {
-    objectMode: true,
-    fields: [
-      {
-        label: "candidate_id",
-        value: "data[0].id",
-      },
-      {
-        label: "first_name",
-        value: "data[0].attributes['first-name']",
-      },
-      {
-        label: "last_name",
-        value: "data[0].attributes['last-name']",
-      },
-      {
-        label: "email",
-        value: "data[0].attributes.email",
-      },
-      {
-        label: "job_application_id",
-        value: "data[0].relationships['job-applications'].data[0].id",
-      },
-      {
-        label: "job_application_created_at",
-        value: "included[0].attributes['created-at']",
-      },
-    ],
-  };
+  // const opts = {
+  //   objectMode: true,
+  //   fields: [
+  //     {
+  //       label: "candidate_id",
+  //       value: "data[0].id",
+  //     },
+  //     {
+  //       label: "first_name",
+  //       value: "data[0].attributes['first-name']",
+  //     },
+  //     {
+  //       label: "last_name",
+  //       value: "data[0].attributes['last-name']",
+  //     },
+  //     {
+  //       label: "email",
+  //       value: "data[0].attributes.email",
+  //     },
+  //     {
+  //       label: "job_application_id",
+  //       value: "data[0].relationships['job-applications'].data[0].id",
+  //     },
+  //     {
+  //       label: "job_application_created_at",
+  //       value: "included[0].attributes['created-at']",
+  //     },
+  //   ],
+  // };
 
-  const json2csv = new Transform(opts);
+  // const json2csv = new Transform(opts);
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", 'attachment; filename="candidates.csv"');
-  const jsonStream = await getCandidates(res);
+  const jsonStream = await getCandidates(res, next);
 
   // json2csv
   //   .on("header", (header) => console.log({ header }))

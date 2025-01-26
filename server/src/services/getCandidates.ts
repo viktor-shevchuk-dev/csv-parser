@@ -1,7 +1,18 @@
 import axios from "axios";
-import { Transform } from "json2csv";
-const https = require("https");
-import { PassThrough } from "stream";
+// import { Transform } from "json2csv";
+import { EOL } from "os";
+import { chain } from "stream-chain";
+import { parser } from "stream-json";
+import { streamValues } from "stream-json/streamers/StreamValues";
+import { asObjects } from "stream-csv-as-json/AsObjects";
+import { stringer } from "stream-csv-as-json/Stringer";
+import { Transform } from "stream";
+import { format, FormatterRow } from "fast-csv";
+import csvWriter from "csv-write-stream";
+import { pipeline } from "stream";
+import { promisify } from "util";
+var jsonToCsv = require("json-to-csv-stream");
+const pipelineAsync = promisify(pipeline);
 
 interface JsonApiResponse {
   data: Candidate[];
@@ -81,41 +92,69 @@ const getEndpoint = (num = "1") => {
 
 const getOpts = (num) => {
   return {
+    transform(chunk, encoding, callback) {
+      this.push(chunk + "\n");
+      callback();
+    },
     objectMode: true,
     fields: [
-      {
-        label: "test",
-        value: (row) => row.data.map((candidate) => candidate.id).join("\n"), // does not work. find a way in the docs to map multiple entries (30 items)
-      },
+      // {
+      //   label: "test",
+      //   value: (row) => row.data.map((candidate) => candidate.id).join("\n"), // does not work. find a way in the docs to map multiple entries (30 items). find maybe another csv parser which parses streams
+      // },
       {
         label: `candidate_id`,
-        value: `data[${num}].id`,
+        value: `data[${0}].id`,
       },
       {
         label: `first_name`,
-        value: `data[${num}].attributes['first-name']`,
+        value: `data[${0}].attributes['first-name']`,
       },
       {
         label: `last_name`,
-        value: `data[${num}].attributes['last-name']`,
+        value: `data[${0}].attributes['last-name']`,
       },
       {
         label: `email`,
-        value: `data[${num}].attributes.email`,
+        value: `data[${0}].attributes.email`,
       },
       {
         label: `job_application_id`,
-        value: `data[${num}].relationships['job-applications'].data[${num}].id`,
+        value: `data[${0}].relationships['job-applications'].data[${0}].id`,
       },
       {
         label: `job_application_created_at`,
-        value: `included[${num}].attributes['created-at']`,
+        value: `included[${0}].attributes['created-at']`,
       },
     ],
   };
 };
 
-const getCandidates = async (res) => {
+class MyCustomTransform extends Transform {
+  constructor(options = {}) {
+    super({ ...options, objectMode: true });
+  }
+
+  _transform(chunk, encoding, callback) {
+    const candidates = chunk.value.data; // Assuming the data array is directly in chunk.value
+    candidates.forEach((candidate) => {
+      const transformed = {
+        id: candidate.id,
+        firstName: candidate.attributes["first-name"],
+        lastName: candidate.attributes["last-name"],
+        email: candidate.attributes.email,
+        // Assuming the first job application's ID is what you need
+        jobApplicationId:
+          candidate.relationships["job-applications"].data[0]?.id,
+      };
+
+      this.push(transformed); // Push each transformed candidate to the next step in the stream
+    });
+    callback(); // Signal that the processing for this chunk is complete
+  }
+}
+
+const getCandidates = async (res, next) => {
   const { API_KEY, API_VERSION } = process.env;
 
   const headers = {
@@ -129,35 +168,54 @@ const getCandidates = async (res) => {
 
   // return data;
 
-  // return await axios.get(url, {
-  //   headers,
-  //   responseType: "stream",
-  // });
-  // console.log({ url, headers });
+  let recordCount = 10;
 
-  let recordCount = 1;
+  try {
+    for (let i = 1; i <= recordCount; i++) {
+      // await new Promise((resolve) => setTimeout(resolve, 0));
 
-  for (let i = 1; i <= recordCount; i++) {
-    const endpoint = getEndpoint(i.toString());
-    const response = await axios.get(endpoint, {
-      headers,
-      responseType: "stream",
-    });
+      // const opts = { ...getOpts(i), header: i === 1 };
+      // const json2csv = new Transform(opts);
 
-    response.data.on("data", (chunk) => {
-      console.log(chunk.toString());
-    });
+      const endpoint = getEndpoint(i.toString());
+      const { data: jsonStream } = await axios.get(endpoint, {
+        headers,
+        responseType: "stream",
+      });
 
-    const json2csv = new Transform({ ...getOpts(i), header: i === 1 });
-    response.data.pipe(json2csv).pipe(res, { end: recordCount === i });
-    await new Promise((resolve, reject) => {
-      json2csv.on("finish", resolve);
-      json2csv.on("error", reject);
-    });
-    if (i < recordCount) {
-      res.write("\n"); // Ensure there's a newline between CSV data sets
+      // jsonStream.on("data", (chunk) => {
+      //   // console.log(chunk.toString());
+      //   console.log(879787898);
+      //   // console.log(chunk);
+      // });
+
+      const jsonParser = parser();
+      const valueStream = streamValues();
+      const transformer = new MyCustomTransform();
+      const writer = csvWriter({
+        headers: ["id", "fullName", "email", "jobApplicationId"],
+      });
+
+      const isLastPage = i === recordCount;
+
+      await pipelineAsync(
+        jsonStream,
+        jsonParser,
+        valueStream,
+        transformer,
+        writer,
+        res,
+        { end: isLastPage }
+      );
+
+      // jsonStream.pipe(json2csv).pipe(res, { end: isLastPage });
+      // if (i !== 1) res.write(EOL);
     }
+  } catch (error) {
+    next(error);
+    console.log({ error });
   }
+
   // res.end();
 
   // const response1 = await axios.get(getEndpoint("1"), {
@@ -168,8 +226,6 @@ const getCandidates = async (res) => {
   // response1.data.pipe(json2csv).pipe(res, { end: false });
 
   // response1.data.on("end", async () => {
-  //   res.write("\n");
-
   //   const response2 = await axios.get(getEndpoint("2"), {
   //     headers,
   //     responseType: "stream",
