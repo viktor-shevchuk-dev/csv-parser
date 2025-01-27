@@ -60,27 +60,14 @@ interface Meta {
   "page-count": number;
 }
 
-let counter = 1;
-
-const fetchWithErrorHandling = async (
-  url = "",
-  config = {}
-): Promise<JsonApiResponse> => {
-  const response = await fetch(url, config);
-
-  return response.ok
-    ? (response.json() as Promise<JsonApiResponse>)
-    : Promise.reject(new Error(`${response.statusText}: ${response.status}`));
-};
-
-const getEndpoint = (num = "1") => {
+const getEndpoint = (num) => {
   const { BASE_URL } = process.env;
 
   const params = {
     include: "job-applications",
     "fields[candidates]": "id,first-name,last-name,email,job-applications",
     "fields[job-applications]": "id,created-at",
-    "page[size]": "2",
+    "page[size]": "30",
     "page[number]": num,
   };
 
@@ -89,70 +76,54 @@ const getEndpoint = (num = "1") => {
   return endpoint;
 };
 
-const getOpts = (num) => {
-  return {
-    transform(chunk, encoding, callback) {
-      this.push(chunk + "\n");
-      callback();
-    },
-    objectMode: true,
-    fields: [
-      // {
-      //   label: "test",
-      //   value: (row) => row.data.map((candidate) => candidate.id).join("\n"), // does not work. find a way in the docs to map multiple entries (30 items). find maybe another csv parser which parses streams
-      // },
-      {
-        label: `candidate_id`,
-        value: `data[${0}].id`,
-      },
-      {
-        label: `first_name`,
-        value: `data[${0}].attributes['first-name']`,
-      },
-      {
-        label: `last_name`,
-        value: `data[${0}].attributes['last-name']`,
-      },
-      {
-        label: `email`,
-        value: `data[${0}].attributes.email`,
-      },
-      {
-        label: `job_application_id`,
-        value: `data[${0}].relationships['job-applications'].data[${0}].id`,
-      },
-      {
-        label: `job_application_created_at`,
-        value: `included[${0}].attributes['created-at']`,
-      },
-    ],
-  };
-};
-
 class MyCustomTransform extends Transform {
   constructor(options = {}) {
     super({ ...options, objectMode: true });
   }
 
   _transform(chunk, encoding, callback) {
-    const { data: candidates, included: jobApplications } = chunk.value;
+    const { data: candidates, included } = chunk.value;
+    console.log(chunk);
+
+    const jobApplicationsMap = included.reduce((map, item) => {
+      map[item.id] = item;
+      return map;
+    }, {});
 
     candidates.forEach((candidate) => {
-      const transformed = {
-        candidate_id: candidate.id,
-        first_name: candidate.attributes["first-name"],
-        last_name: candidate.attributes["last-name"],
-        email: candidate.attributes.email,
-        // Assuming the first job application's ID is what is needed
-        job_application_id:
-          candidate.relationships["job-applications"].data[0].id,
-        job_application_created_at: jobApplications[0].attributes["created-at"],
-      };
+      const jobApplications = candidate.relationships["job-applications"].data;
 
-      this.push(transformed);
+      jobApplications.forEach((jobAppData) => {
+        const jobApplication = jobApplicationsMap[jobAppData.id];
+
+        const transformed = {
+          candidate_id: candidate.id,
+          first_name: candidate.attributes["first-name"],
+          last_name: candidate.attributes["last-name"],
+          email: candidate.attributes.email,
+          job_application_id: jobApplication.id,
+          job_application_created_at: jobApplication.attributes["created-at"],
+        };
+
+        this.push(transformed);
+      });
     });
     callback();
   }
+}
+
+async function safeApiCall(url, config) {
+  const { headers, data: jsonStream } = await axios.get(url, config);
+  const limitRemaining = headers["x-rate-limit-remaining"];
+  const limitReset = headers["x-rate-limit-reset"];
+
+  if (Number(limitRemaining) <= 1) {
+    const waitMs = Number(limitReset) * 1000;
+    console.log(`Approaching limit. Waiting for ${waitMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  return jsonStream;
 }
 
 const getCandidates = async (res, next) => {
@@ -163,32 +134,22 @@ const getCandidates = async (res, next) => {
     "X-Api-Version": API_VERSION,
   };
 
-  // const data: JsonApiResponse = await fetchWithErrorHandling(url, {
-  //   headers,
-  // });
-
-  // return data;
-
-  let recordCount = 1;
+  let recordCount = 12;
 
   try {
     for (let i = 1; i <= recordCount; i++) {
-      // await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // const opts = { ...getOpts(i), header: i === 1 };
-      // const json2csv = new Transform(opts);
-
-      const endpoint = getEndpoint(i.toString());
-      const { data: jsonStream } = await axios.get(endpoint, {
+      const url = getEndpoint(i.toString());
+      const jsonStream = await safeApiCall(url, {
         headers,
         responseType: "stream",
       });
 
-      // jsonStream.on("data", (chunk) => {
-      //   // console.log(chunk.toString());
-      //   console.log(879787898);
-      //   // console.log(chunk);
-      // });
+      jsonStream.on("data", (chunk) => {
+        // console.log(chunk.toString());
+        // console.log(879787898);
+        // console.log(chunk);
+      });
+      const isFirstPage = i === 1;
 
       const jsonParser = parser();
       const valueStream = streamValues();
@@ -202,6 +163,7 @@ const getCandidates = async (res, next) => {
           "job_application_id",
           "job_application_created_at",
         ],
+        sendHeaders: isFirstPage,
       });
 
       const isLastPage = i === recordCount;
@@ -215,33 +177,11 @@ const getCandidates = async (res, next) => {
         res,
         { end: isLastPage }
       );
-
-      // jsonStream.pipe(json2csv).pipe(res, { end: isLastPage });
-      // if (i !== 1) res.write(EOL);
     }
   } catch (error) {
     next(error);
     console.log({ error });
   }
-
-  // res.end();
-
-  // const response1 = await axios.get(getEndpoint("1"), {
-  //   headers,
-  //   responseType: "stream",
-  // });
-  // const json2csv = new Transform(opts);
-  // response1.data.pipe(json2csv).pipe(res, { end: false });
-
-  // response1.data.on("end", async () => {
-  //   const response2 = await axios.get(getEndpoint("2"), {
-  //     headers,
-  //     responseType: "stream",
-  //   });
-  //   const json2csv = new Transform({ ...opts, header: false });
-
-  //   response2.data.pipe(json2csv).pipe(res, { end: true });
-  // });
 };
 
 export default getCandidates;
