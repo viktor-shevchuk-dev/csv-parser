@@ -6,10 +6,9 @@ import { parser } from "stream-json";
 import { streamValues } from "stream-json/streamers/StreamValues";
 import { asObjects } from "stream-csv-as-json/AsObjects";
 import { stringer } from "stream-csv-as-json/Stringer";
-import { Transform } from "stream";
+import { Transform, pipeline } from "stream";
 import { format, FormatterRow } from "fast-csv";
 import csvWriter from "csv-write-stream";
-import { pipeline } from "stream";
 import { promisify } from "util";
 var jsonToCsv = require("json-to-csv-stream");
 const pipelineAsync = promisify(pipeline);
@@ -81,7 +80,7 @@ const getEndpoint = (num = "1") => {
     include: "job-applications",
     "fields[candidates]": "id,first-name,last-name,email,job-applications",
     "fields[job-applications]": "id,created-at",
-    "page[size]": "30",
+    "page[size]": "2",
     "page[number]": num,
   };
 
@@ -136,21 +135,23 @@ class MyCustomTransform extends Transform {
   }
 
   _transform(chunk, encoding, callback) {
-    const candidates = chunk.value.data; // Assuming the data array is directly in chunk.value
+    const { data: candidates, included: jobApplications } = chunk.value;
+
     candidates.forEach((candidate) => {
       const transformed = {
-        id: candidate.id,
-        firstName: candidate.attributes["first-name"],
-        lastName: candidate.attributes["last-name"],
+        candidate_id: candidate.id,
+        first_name: candidate.attributes["first-name"],
+        last_name: candidate.attributes["last-name"],
         email: candidate.attributes.email,
-        // Assuming the first job application's ID is what you need
-        jobApplicationId:
-          candidate.relationships["job-applications"].data[0]?.id,
+        // Assuming the first job application's ID is what is needed
+        job_application_id:
+          candidate.relationships["job-applications"].data[0].id,
+        job_application_created_at: jobApplications[0].attributes["created-at"],
       };
 
-      this.push(transformed); // Push each transformed candidate to the next step in the stream
+      this.push(transformed);
     });
-    callback(); // Signal that the processing for this chunk is complete
+    callback();
   }
 }
 
@@ -168,7 +169,7 @@ const getCandidates = async (res, next) => {
 
   // return data;
 
-  let recordCount = 10;
+  let recordCount = 1;
 
   try {
     for (let i = 1; i <= recordCount; i++) {
@@ -193,7 +194,14 @@ const getCandidates = async (res, next) => {
       const valueStream = streamValues();
       const transformer = new MyCustomTransform();
       const writer = csvWriter({
-        headers: ["id", "fullName", "email", "jobApplicationId"],
+        headers: [
+          "candidate_id",
+          "first_name",
+          "last_name",
+          "email",
+          "job_application_id",
+          "job_application_created_at",
+        ],
       });
 
       const isLastPage = i === recordCount;
