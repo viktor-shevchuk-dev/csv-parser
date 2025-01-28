@@ -60,23 +60,20 @@ interface Meta {
   "page-count": number;
 }
 
-const getEndpoint = (num) => {
-  const { BASE_URL } = process.env;
-
+const getUrl = (pageNumber: number) => {
   const params = {
     include: "job-applications",
     "fields[candidates]": "id,first-name,last-name,email,job-applications",
     "fields[job-applications]": "id,created-at",
     "page[size]": "30",
-    "page[number]": num,
+    "page[number]": String(pageNumber),
   };
-
   const queryString = new URLSearchParams(params).toString();
-  const endpoint = `${BASE_URL}/candidates?${queryString}`;
-  return endpoint;
+
+  return `${process.env.BASE_URL}/candidates?${queryString}`;
 };
 
-class MyCustomTransform extends Transform {
+class CandidatesToCsvTransform extends Transform {
   constructor(options = {}) {
     super({ ...options, objectMode: true });
   }
@@ -85,7 +82,7 @@ class MyCustomTransform extends Transform {
 
   _transform(chunk, encoding, callback) {
     const { data: candidates, included, meta } = chunk.value;
-    MyCustomTransform.pageCount = meta["page-count"];
+    CandidatesToCsvTransform.pageCount = meta["page-count"];
 
     const jobApplicationsMap = included.reduce((map, item) => {
       map[item.id] = item;
@@ -93,10 +90,8 @@ class MyCustomTransform extends Transform {
     }, {});
 
     candidates.forEach((candidate) => {
-      const jobApplications = candidate.relationships["job-applications"].data;
-
-      jobApplications.forEach((jobAppData) => {
-        const jobApplication = jobApplicationsMap[jobAppData.id];
+      candidate.relationships["job-applications"].data.forEach((jobApp) => {
+        const jobApplication = jobApplicationsMap[jobApp.id];
 
         const transformed = {
           candidate_id: candidate.id,
@@ -128,122 +123,58 @@ async function safeApiCall(url, config) {
   return jsonStream;
 }
 
-async function getFirstPage(headers: any) {
-  const url = getEndpoint(1);
-  // Make the API call for the first page:
-  const firstPageStream = await safeApiCall(url, {
-    headers,
-    responseType: "stream",
-  });
+const axiosConfig = {
+  headers: {
+    Authorization: `Token token=${process.env.API_KEY}`,
+    "X-Api-Version": process.env.API_VERSION,
+  },
+  responseType: "stream",
+};
 
-  return firstPageStream;
-}
+const csvWriterConfig = {
+  headers: [
+    "candidate_id",
+    "first_name",
+    "last_name",
+    "email",
+    "job_application_id",
+    "job_application_created_at",
+  ],
+  sendHeaders: true,
+};
 
 const getCandidates = async (res, next) => {
-  const { API_KEY, API_VERSION } = process.env;
-
-  const headers = {
-    Authorization: `Token token=${API_KEY}`,
-    "X-Api-Version": API_VERSION,
-  };
-
-  const firstPageStream = await getFirstPage(headers);
-
-  await pipelineAsync(
-    firstPageStream,
-    parser(),
-    streamValues(),
-    new MyCustomTransform(),
-    csvWriter({
-      headers: [
-        "candidate_id",
-        "first_name",
-        "last_name",
-        "email",
-        "job_application_id",
-        "job_application_created_at",
-      ],
-      sendHeaders: true,
-    }),
-    res,
-    { end: false }
-  );
-
-  for (let page = 2; page <= MyCustomTransform.pageCount; page++) {
-    const url = getEndpoint(page);
-    const pageStream = await safeApiCall(url, {
-      headers,
-      responseType: "stream",
-    });
-    const isLastPage = page === MyCustomTransform.pageCount;
+  try {
+    const firstPageStream = await safeApiCall(getUrl(1), axiosConfig);
 
     await pipelineAsync(
-      pageStream,
+      firstPageStream,
       parser(),
       streamValues(),
-      new MyCustomTransform(),
-      csvWriter({
-        headers: [
-          "candidate_id",
-          "first_name",
-          "last_name",
-          "email",
-          "job_application_id",
-          "job_application_created_at",
-        ],
-        sendHeaders: false,
-      }),
+      new CandidatesToCsvTransform(),
+      csvWriter(csvWriterConfig),
       res,
-      { end: isLastPage }
+      { end: false }
     );
+
+    for (let page = 2; page <= CandidatesToCsvTransform.pageCount; page++) {
+      const pageStream = await safeApiCall(getUrl(page), axiosConfig);
+      const isLastPage = page === CandidatesToCsvTransform.pageCount;
+
+      await pipelineAsync(
+        pageStream,
+        parser(),
+        streamValues(),
+        new CandidatesToCsvTransform(),
+        csvWriter({ ...csvWriterConfig, sendHeaders: false }),
+        res,
+        { end: isLastPage }
+      );
+    }
+  } catch (error) {
+    next(error);
+    console.log({ error });
   }
-
-  // try {
-  //   for (let i = 1; i <= recordCount; i++) {
-  //     const url = getEndpoint(i.toString());
-  //     const jsonStream = await safeApiCall(url, {
-  //       headers,
-  //       responseType: "stream",
-  //     });
-
-  //     jsonStream.on("data", (chunk) => {
-  //       // console.log(chunk.toString());
-  //       // console.log(879787898);
-  //       // console.log(chunk);
-  //     });
-  //     const isFirstPage = i === 1;
-
-  //     const jsonParser = parser();
-  //     const valueStream = streamValues();
-  //     const transformer = new MyCustomTransform();
-  //     const writer = csvWriter({
-  //       headers: [
-  //         "candidate_id",
-  //         "first_name",
-  //         "last_name",
-  //         "email",
-  //         "job_application_id",
-  //         "job_application_created_at",
-  //       ],
-  //       sendHeaders: isFirstPage,
-  //     });
-
-  //     const isLastPage = i === recordCount;
-
-  //     await pipelineAsync(
-  //       jsonStream,
-  //       jsonParser,
-  //       valueStream,
-  //       transformer,
-  //       writer,
-  //       res,
-  //       { end: isLastPage }
-  //     );
-  //   }
-  // } catch (error) {
-  //   next(error);
-  //   console.log({ error });
-  // }
 };
 
 export default getCandidates;
