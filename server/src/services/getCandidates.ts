@@ -81,9 +81,11 @@ class MyCustomTransform extends Transform {
     super({ ...options, objectMode: true });
   }
 
+  static pageCount = 1;
+
   _transform(chunk, encoding, callback) {
-    const { data: candidates, included } = chunk.value;
-    console.log(chunk);
+    const { data: candidates, included, meta } = chunk.value;
+    MyCustomTransform.pageCount = meta["page-count"];
 
     const jobApplicationsMap = included.reduce((map, item) => {
       map[item.id] = item;
@@ -134,31 +136,7 @@ async function getFirstPage(headers: any) {
     responseType: "stream",
   });
 
-  // We'll buffer this entire first page into memory
-  // (which is usually OK if the page[size] isn't huge).
-  const chunks: Buffer[] = [];
-  await new Promise<void>((resolve, reject) => {
-    firstPageStream.on("data", (chunk) => chunks.push(chunk));
-    firstPageStream.on("end", () => resolve());
-    firstPageStream.on("error", (err) => reject(err));
-  });
-
-  // Convert all buffered chunks into one JSON object:
-  const buffered = Buffer.concat(chunks).toString("utf8");
-  const firstPageData: JsonApiResponse = JSON.parse(buffered);
-
-  return firstPageData;
-}
-
-function createReadableFromObject(json: JsonApiResponse) {
-  const r = new Readable({
-    read() {
-      // Convert object to string, push it, then end
-      this.push(JSON.stringify(json));
-      this.push(null);
-    },
-  });
-  return r;
+  return firstPageStream;
 }
 
 const getCandidates = async (res, next) => {
@@ -169,12 +147,10 @@ const getCandidates = async (res, next) => {
     "X-Api-Version": API_VERSION,
   };
 
-  const firstPageData = await getFirstPage(headers);
-  const pageCount = firstPageData.meta["page-count"];
-  const firstPageReadable = createReadableFromObject(firstPageData);
+  const firstPageStream = await getFirstPage(headers);
 
   await pipelineAsync(
-    firstPageReadable,
+    firstPageStream,
     parser(),
     streamValues(),
     new MyCustomTransform(),
@@ -193,13 +169,13 @@ const getCandidates = async (res, next) => {
     { end: false }
   );
 
-  for (let page = 2; page <= pageCount; page++) {
+  for (let page = 2; page <= MyCustomTransform.pageCount; page++) {
     const url = getEndpoint(page);
     const pageStream = await safeApiCall(url, {
       headers,
       responseType: "stream",
     });
-    const isLastPage = page === pageCount;
+    const isLastPage = page === MyCustomTransform.pageCount;
 
     await pipelineAsync(
       pageStream,
