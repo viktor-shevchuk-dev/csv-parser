@@ -78,11 +78,14 @@ class CandidatesToCsvTransform extends Transform {
     super({ ...options, objectMode: true });
   }
 
-  static pageCount = 1;
+  static isLastPageProcessed = false;
 
   _transform(chunk, encoding, callback) {
-    const { data: candidates, included, meta } = chunk.value;
-    CandidatesToCsvTransform.pageCount = meta["page-count"];
+    const {
+      data: candidates,
+      included,
+      links: { next },
+    } = chunk.value;
 
     const jobApplicationsMap = included.reduce((map, item) => {
       map[item.id] = item;
@@ -105,6 +108,7 @@ class CandidatesToCsvTransform extends Transform {
         this.push(transformed);
       });
     });
+    CandidatesToCsvTransform.isLastPageProcessed = !Boolean(next);
     callback();
   }
 }
@@ -131,7 +135,7 @@ const axiosConfig = {
   responseType: "stream",
 };
 
-const csvWriterConfig = {
+const csvConfig = {
   headers: [
     "candidate_id",
     "first_name",
@@ -145,32 +149,24 @@ const csvWriterConfig = {
 
 const getCandidates = async (res, next) => {
   try {
-    const firstPageStream = await safeApiCall(getUrl(1), axiosConfig);
-
-    await pipelineAsync(
-      firstPageStream,
-      parser(),
-      streamValues(),
-      new CandidatesToCsvTransform(),
-      csvWriter(csvWriterConfig),
-      res,
-      { end: false }
-    );
-
-    for (let page = 2; page <= CandidatesToCsvTransform.pageCount; page++) {
-      const pageStream = await safeApiCall(getUrl(page), axiosConfig);
-      const isLastPage = page === CandidatesToCsvTransform.pageCount;
-
+    for (let page = 1; page <= Infinity; page++) {
+      const jsonStream = await safeApiCall(getUrl(page), axiosConfig);
+      const writer = csvWriter(
+        page === 1 ? csvConfig : { ...csvConfig, sendHeaders: false }
+      );
       await pipelineAsync(
-        pageStream,
+        jsonStream,
         parser(),
         streamValues(),
         new CandidatesToCsvTransform(),
-        csvWriter({ ...csvWriterConfig, sendHeaders: false }),
+        writer,
         res,
-        { end: isLastPage }
+        { end: false }
       );
+
+      if (CandidatesToCsvTransform.isLastPageProcessed) break;
     }
+    res.end();
   } catch (error) {
     next(error);
     console.log({ error });
