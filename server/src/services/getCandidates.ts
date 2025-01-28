@@ -135,31 +135,25 @@ const axiosConfig = {
   responseType: "stream",
 };
 
-const csvConfig = {
-  headers: [
-    "candidate_id",
-    "first_name",
-    "last_name",
-    "email",
-    "job_application_id",
-    "job_application_created_at",
-  ],
-  sendHeaders: true,
-};
+const csvHeaders = [
+  "candidate_id",
+  "first_name",
+  "last_name",
+  "email",
+  "job_application_id",
+  "job_application_created_at",
+];
 
 const getCandidates = async (res, next) => {
   try {
     for (let page = 1; page <= Infinity; page++) {
       const jsonStream = await safeApiCall(getUrl(page), axiosConfig);
-      const writer = csvWriter(
-        page === 1 ? csvConfig : { ...csvConfig, sendHeaders: false }
-      );
       await pipelineAsync(
         jsonStream,
         parser(),
         streamValues(),
         new CandidatesToCsvTransform(),
-        writer,
+        csvWriter({ headers: csvHeaders, sendHeaders: page === 1 }),
         res,
         { end: false }
       );
