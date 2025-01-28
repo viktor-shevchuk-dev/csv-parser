@@ -6,7 +6,7 @@ import { parser } from "stream-json";
 import { streamValues } from "stream-json/streamers/StreamValues";
 import { asObjects } from "stream-csv-as-json/AsObjects";
 import { stringer } from "stream-csv-as-json/Stringer";
-import { Transform, pipeline } from "stream";
+import { Transform, pipeline, Readable } from "stream";
 import { format, FormatterRow } from "fast-csv";
 import csvWriter from "csv-write-stream";
 import { promisify } from "util";
@@ -126,6 +126,41 @@ async function safeApiCall(url, config) {
   return jsonStream;
 }
 
+async function getFirstPage(headers: any) {
+  const url = getEndpoint(1);
+  // Make the API call for the first page:
+  const firstPageStream = await safeApiCall(url, {
+    headers,
+    responseType: "stream",
+  });
+
+  // We'll buffer this entire first page into memory
+  // (which is usually OK if the page[size] isn't huge).
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    firstPageStream.on("data", (chunk) => chunks.push(chunk));
+    firstPageStream.on("end", () => resolve());
+    firstPageStream.on("error", (err) => reject(err));
+  });
+
+  // Convert all buffered chunks into one JSON object:
+  const buffered = Buffer.concat(chunks).toString("utf8");
+  const firstPageData: JsonApiResponse = JSON.parse(buffered);
+
+  return firstPageData;
+}
+
+function createReadableFromObject(json: JsonApiResponse) {
+  const r = new Readable({
+    read() {
+      // Convert object to string, push it, then end
+      this.push(JSON.stringify(json));
+      this.push(null);
+    },
+  });
+  return r;
+}
+
 const getCandidates = async (res, next) => {
   const { API_KEY, API_VERSION } = process.env;
 
@@ -134,27 +169,44 @@ const getCandidates = async (res, next) => {
     "X-Api-Version": API_VERSION,
   };
 
-  let recordCount = 12;
+  const firstPageData = await getFirstPage(headers);
+  const pageCount = firstPageData.meta["page-count"];
+  const firstPageReadable = createReadableFromObject(firstPageData);
 
-  try {
-    for (let i = 1; i <= recordCount; i++) {
-      const url = getEndpoint(i.toString());
-      const jsonStream = await safeApiCall(url, {
-        headers,
-        responseType: "stream",
-      });
+  await pipelineAsync(
+    firstPageReadable,
+    parser(),
+    streamValues(),
+    new MyCustomTransform(),
+    csvWriter({
+      headers: [
+        "candidate_id",
+        "first_name",
+        "last_name",
+        "email",
+        "job_application_id",
+        "job_application_created_at",
+      ],
+      sendHeaders: true,
+    }),
+    res,
+    { end: false }
+  );
 
-      jsonStream.on("data", (chunk) => {
-        // console.log(chunk.toString());
-        // console.log(879787898);
-        // console.log(chunk);
-      });
-      const isFirstPage = i === 1;
+  for (let page = 2; page <= pageCount; page++) {
+    const url = getEndpoint(page);
+    const pageStream = await safeApiCall(url, {
+      headers,
+      responseType: "stream",
+    });
+    const isLastPage = page === pageCount;
 
-      const jsonParser = parser();
-      const valueStream = streamValues();
-      const transformer = new MyCustomTransform();
-      const writer = csvWriter({
+    await pipelineAsync(
+      pageStream,
+      parser(),
+      streamValues(),
+      new MyCustomTransform(),
+      csvWriter({
         headers: [
           "candidate_id",
           "first_name",
@@ -163,25 +215,59 @@ const getCandidates = async (res, next) => {
           "job_application_id",
           "job_application_created_at",
         ],
-        sendHeaders: isFirstPage,
-      });
-
-      const isLastPage = i === recordCount;
-
-      await pipelineAsync(
-        jsonStream,
-        jsonParser,
-        valueStream,
-        transformer,
-        writer,
-        res,
-        { end: isLastPage }
-      );
-    }
-  } catch (error) {
-    next(error);
-    console.log({ error });
+        sendHeaders: false,
+      }),
+      res,
+      { end: isLastPage }
+    );
   }
+
+  // try {
+  //   for (let i = 1; i <= recordCount; i++) {
+  //     const url = getEndpoint(i.toString());
+  //     const jsonStream = await safeApiCall(url, {
+  //       headers,
+  //       responseType: "stream",
+  //     });
+
+  //     jsonStream.on("data", (chunk) => {
+  //       // console.log(chunk.toString());
+  //       // console.log(879787898);
+  //       // console.log(chunk);
+  //     });
+  //     const isFirstPage = i === 1;
+
+  //     const jsonParser = parser();
+  //     const valueStream = streamValues();
+  //     const transformer = new MyCustomTransform();
+  //     const writer = csvWriter({
+  //       headers: [
+  //         "candidate_id",
+  //         "first_name",
+  //         "last_name",
+  //         "email",
+  //         "job_application_id",
+  //         "job_application_created_at",
+  //       ],
+  //       sendHeaders: isFirstPage,
+  //     });
+
+  //     const isLastPage = i === recordCount;
+
+  //     await pipelineAsync(
+  //       jsonStream,
+  //       jsonParser,
+  //       valueStream,
+  //       transformer,
+  //       writer,
+  //       res,
+  //       { end: isLastPage }
+  //     );
+  //   }
+  // } catch (error) {
+  //   next(error);
+  //   console.log({ error });
+  // }
 };
 
 export default getCandidates;
