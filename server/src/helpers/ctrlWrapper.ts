@@ -1,6 +1,6 @@
 import { RequestHandler } from "express";
 
-const ctrlWrapper = (ctrl: RequestHandler) => {
+export const ctrlWrapper = (ctrl: RequestHandler) => {
   const func: RequestHandler = async (req, res, next) => {
     try {
       await ctrl(req, res, next);
@@ -11,5 +11,3 @@ const ctrlWrapper = (ctrl: RequestHandler) => {
 
   return func;
 };
-
-export default ctrlWrapper;

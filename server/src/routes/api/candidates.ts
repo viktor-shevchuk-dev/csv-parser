@@ -1,6 +1,6 @@
 import express from "express";
 
-import ctrl from "../../controllers/books";
+import ctrl from "../../controllers/candidates";
 
 const router = express.Router();
 

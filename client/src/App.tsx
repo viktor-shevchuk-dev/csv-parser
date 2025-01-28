@@ -1,7 +1,14 @@
+import { ToastContainer } from "react-toastify";
+
 import { Home } from "views";
 
 function App() {
-  return <Home />;
+  return (
+    <>
+      <Home />
+      <ToastContainer />
+    </>
+  );
 }
 
 export default App;

@@ -3,7 +3,7 @@ import logger from "morgan";
 import cors from "cors";
 import "dotenv/config";
 
-import booksRouter from "./routes/api/books";
+import candidatesRouter from "./routes/api/candidates";
 
 const app = express();
 
@@ -13,7 +13,7 @@ app.use(logger(formatsLogger));
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/books", booksRouter);
+app.use("/api/candidates", candidatesRouter);
 
 const notFoundHandler: RequestHandler = (req, res) => {
   res.status(404).json({ message: "Not Found" });
