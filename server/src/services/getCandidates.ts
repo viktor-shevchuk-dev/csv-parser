@@ -21,7 +21,6 @@ async function* fetchAllPages() {
     // data is a ReadableStream (the JSON stream from axios)
     yield data;
 
-    // optionally break out if isLastPageProcessed
     if (CandidatesToCsvTransform.isLastPageProcessed) {
       break;
     }
@@ -55,26 +54,6 @@ export const getCandidates = async (
       zlib.createBrotliCompress(),
       res
     );
-
-    // for (let page = 1; page <= Number.MAX_SAFE_INTEGER; page++) {
-    //   const { data: jsonStream } = await fetchWithThrottling(
-    //     getUrl(page),
-    //     axiosConfig
-    //   );
-
-    //   await pipelineAsync(
-    //     jsonStream,
-    //     parser(),
-    //     streamValues(),
-    //     new CandidatesToCsvTransform(),
-    //     csvWriter({ headers: csvHeaders, sendHeaders: page === 1 }),
-    //     zlib.createBrotliCompress(),
-    //     res,
-    //     { end: false }
-    //   );
-
-    //   if (CandidatesToCsvTransform.isLastPageProcessed) break;
-    // }
 
     res.end();
   } catch (error) {

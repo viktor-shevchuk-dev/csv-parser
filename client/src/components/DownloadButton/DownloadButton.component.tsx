@@ -34,26 +34,6 @@ export const DownloadButton: FC = () => {
 
       const blob = await response.blob();
 
-      // const reader = response.body?.getReader();
-      // if (!reader) {
-      //   throw new Error('Failed to get reader from the response body');
-      // }
-
-      // const chunks: Uint8Array[] = [];
-
-      // while (true) {
-      //   const { done, value } = await reader.read();
-
-      //   console.log(value);
-
-      //   if (done) break;
-
-      //   chunks.push(value);
-      // }
-
-      // const blob = new Blob(chunks, { type: 'text/csv' });
-      // const url = window.URL.createObjectURL(blob);
-
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
