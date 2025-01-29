@@ -12,21 +12,21 @@ npx mrm lint-staged
 npx mrm@2 lint-staged
 ```
 
-## 2 - Installing Dependencies
+## 2 - Project Setup
+
+Create **.env** file in the server folder and fill it with the following content:
+
+```bash
+BASE_URL = https://api.teamtailor.com/v1
+API_VERSION = 20240904
+API_KEY=<your-api-key>
+```
+
+## 3 - Installing Dependencies
 
 Run the following commands in the root folder.
 
 ```bash
 npm i
 npm run dev
-```
-
-## 3 - Project Setup
-
-Create .env file in the server folder and fill it with the following content:
-
-```bash
-BASE_URL = https://api.teamtailor.com/v1
-API_VERSION = 20240904
-API_KEY=<your-api-key>
 ```
