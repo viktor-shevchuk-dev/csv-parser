@@ -23,29 +23,37 @@ export const DownloadButton: FC = () => {
   const handleButtonClick = async (): Promise<void> => {
     setStatus(Status.PENDING);
     try {
-      const response = await fetch("http://localhost:4000/api/candidates");
+      const response = await fetch("http://localhost:4000/api/candidates", {
+        headers: {
+          "Accept-Encoding": "gzip",
+        },
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch file. Status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("Failed to get reader from the response body");
-      }
+      const blob = await response.blob();
 
-      const chunks: Uint8Array[] = [];
+      // const reader = response.body?.getReader();
+      // if (!reader) {
+      //   throw new Error('Failed to get reader from the response body');
+      // }
 
-      while (true) {
-        const { done, value } = await reader.read();
+      // const chunks: Uint8Array[] = [];
 
-        console.log(value);
+      // while (true) {
+      //   const { done, value } = await reader.read();
 
-        if (done) break;
+      //   console.log(value);
 
-        chunks.push(value);
-      }
+      //   if (done) break;
 
-      const blob = new Blob(chunks, { type: "text/csv" });
+      //   chunks.push(value);
+      // }
+
+      // const blob = new Blob(chunks, { type: 'text/csv' });
+      // const url = window.URL.createObjectURL(blob);
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

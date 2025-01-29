@@ -1,4 +1,5 @@
 import { Transform, TransformOptions, TransformCallback } from "stream";
+import zlib from "zlib";
 
 interface JsonApiResponse {
   data: Candidate[];
@@ -45,6 +46,23 @@ interface Links {
 interface Meta {
   "record-count": number;
   "page-count": number;
+}
+
+export class CompressionStream extends Transform {
+  constructor(options) {
+    super(options);
+    this.gzip = zlib.createGzip();
+  }
+
+  _transform(chunk, encoding, callback) {
+    this.gzip.write(chunk, encoding, callback);
+  }
+
+  _flush(callback) {
+    this.gzip.end();
+    this.gzip.on("data", (chunk) => this.push(chunk));
+    this.gzip.on("end", callback);
+  }
 }
 
 export class CandidatesToCsvTransform extends Transform {
