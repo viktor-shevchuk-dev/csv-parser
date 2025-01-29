@@ -4,28 +4,11 @@ import { streamValues } from "stream-json/streamers/StreamValues";
 import { pipeline, PassThrough } from "stream";
 import csvWriter from "csv-write-stream";
 import { promisify } from "util";
+import { createBrotliCompress } from "zlib";
 const pipelineAsync = promisify(pipeline);
-import zlib from "zlib";
 
-import {
-  getUrl,
-  CandidatesToCsvTransform,
-  CompressionStream,
-  fetchWithThrottling,
-} from "../helpers";
-import { csvHeaders, axiosConfig } from "../config";
-
-async function* fetchAllPages() {
-  for (let page = 1; page <= Number.MAX_SAFE_INTEGER; page++) {
-    const { data } = await fetchWithThrottling(getUrl(page), axiosConfig);
-    // data is a ReadableStream (the JSON stream from axios)
-    yield data;
-
-    if (CandidatesToCsvTransform.isLastPageProcessed) {
-      break;
-    }
-  }
-}
+import { CandidatesToCsvTransform, fetchCandidates } from "../helpers";
+import { csvHeaders } from "../config";
 
 export const getCandidates = async (
   res: Response,
@@ -33,14 +16,15 @@ export const getCandidates = async (
 ): Promise<void> => {
   try {
     const pass = new PassThrough({ objectMode: true });
+    // pass.setMaxListeners(0);
 
     (async () => {
       try {
-        for await (const pageStream of fetchAllPages()) {
+        for await (const pageStream of fetchCandidates()) {
           await pipelineAsync(pageStream, parser(), pass, { end: false });
         }
-      } catch (err) {
-        pass.destroy(err as Error);
+      } catch (error) {
+        pass.destroy(error as Error);
       } finally {
         pass.end();
       }
@@ -51,11 +35,9 @@ export const getCandidates = async (
       streamValues(),
       new CandidatesToCsvTransform(),
       csvWriter({ headers: csvHeaders, sendHeaders: true }),
-      zlib.createBrotliCompress(),
+      createBrotliCompress(),
       res
     );
-
-    res.end();
   } catch (error) {
     next(error);
   }

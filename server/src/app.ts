@@ -2,7 +2,6 @@ import express, { ErrorRequestHandler, RequestHandler } from "express";
 import logger from "morgan";
 import cors from "cors";
 import "dotenv/config";
-const compression = require("compression");
 
 import candidatesRouter from "./routes/api/candidates";
 
@@ -12,7 +11,6 @@ const formatsLogger = app.get("env") === "development" ? "dev" : "short";
 
 app.use(logger(formatsLogger));
 app.use(cors());
-// app.use(compression());
 app.use(express.json());
 
 app.use("/api/candidates", candidatesRouter);

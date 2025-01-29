@@ -1,51 +1,6 @@
 import { Transform, TransformOptions, TransformCallback } from "stream";
 
-interface JsonApiResponse {
-  data: Candidate[];
-  included?: JobApplication[];
-  meta: Meta;
-  links: Links;
-}
-
-interface Candidate {
-  id: string;
-  type: string;
-  attributes: {
-    "first-name": string;
-    "last-name": string;
-    email: string;
-  };
-  relationships: {
-    "job-applications": {
-      data: JobApplicationReference[];
-    };
-  };
-}
-
-interface JobApplicationReference {
-  id: string;
-  type: string;
-}
-
-interface JobApplication {
-  id: string;
-  type: string;
-  attributes: {
-    "created-at": string;
-  };
-}
-
-interface Links {
-  first: string;
-  prev?: string;
-  next?: string;
-  last: string;
-}
-
-interface Meta {
-  "record-count": number;
-  "page-count": number;
-}
+import { JsonApiResponse, JobApplication } from "../types";
 
 export class CandidatesToCsvTransform extends Transform {
   public static isLastPageProcessed = false;
@@ -59,7 +14,7 @@ export class CandidatesToCsvTransform extends Transform {
     chunk: { value: JsonApiResponse },
     _encoding: BufferEncoding,
     callback: TransformCallback
-  ): void {
+  ) {
     const {
       data: candidates,
       included = [],
