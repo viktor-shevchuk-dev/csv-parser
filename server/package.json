@@ -8,7 +8,9 @@
     "start": "cross-env NODE_ENV=production node dist/server",
     "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon dist/server\"",
     "lint": "eslint ./src",
-    "test": "jest"
+    "test": "jest",
+    "cluster": "pm2 start dist/server.js -i max",
+    "delete": "pm2 delete all"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.8.4",
@@ -37,6 +39,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "morgan": "^1.10.0",
+    "pm2": "^5.4.3",
     "stream-json": "^1.9.1"
   }
 }
