@@ -33,14 +33,12 @@ export const DownloadButton: FC = () => {
       }
 
       const blob = await response.blob();
-
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = "candidates.csv";
       link.click();
       window.URL.revokeObjectURL(url);
-
       setStatus(Status.RESOLVED);
     } catch (error) {
       if (error instanceof Error) {

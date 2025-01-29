@@ -16,7 +16,7 @@ export const getCandidates = async (
 ): Promise<void> => {
   try {
     const pass = new PassThrough({ objectMode: true });
-    // pass.setMaxListeners(0);
+    pass.setMaxListeners(0);
 
     (async () => {
       try {
