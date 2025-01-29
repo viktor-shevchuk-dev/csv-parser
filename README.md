@@ -20,3 +20,13 @@ Run the following commands in the root folder.
 npm i
 npm run dev
 ```
+
+## 3 - Project Setup
+
+Create .env file in the server folder and fill it with the following content:
+
+```bash
+BASE_URL = https://api.teamtailor.com/v1
+API_VERSION = 20240904
+API_KEY=<your-api-key>
+```
