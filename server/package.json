@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "cross-env NODE_ENV=production node dist/server",
-    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon dist/server\"",
+    "start": "cross-env NODE_ENV=production node dist/server.js",
+    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon dist/server.js\"",
     "build": "tsc",
     "lint": "eslint ./src",
     "test": "jest",
