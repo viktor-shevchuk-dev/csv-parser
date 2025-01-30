@@ -23,7 +23,7 @@ export const DownloadButton: FC = () => {
   const handleButtonClick = async (): Promise<void> => {
     setStatus(Status.PENDING);
     try {
-      const API_URL = "api/candidates";
+      const API_URL = "http://localhost:4000/api/candidates";
       const response = await fetch(API_URL, {
         headers: { "Accept-Encoding": "gzip" },
       });

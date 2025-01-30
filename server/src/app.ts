@@ -1,4 +1,3 @@
-import path from "path";
 import express, { ErrorRequestHandler, RequestHandler } from "express";
 import logger from "morgan";
 import cors from "cors";
@@ -14,13 +13,7 @@ app.use(logger(formatsLogger));
 app.use(cors());
 app.use(express.json());
 
-app.use(express.static(path.join(__dirname, "../../client/build")));
-
 app.use("/api/candidates", candidatesRouter);
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../../client/build/index.html"));
-});
 
 const notFoundHandler: RequestHandler = (req, res) => {
   res.status(404).json({ message: "Not Found" });
