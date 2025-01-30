@@ -14,7 +14,7 @@ npx mrm@2 lint-staged
 
 ## 2 - Project Setup
 
-Create **.env** file in the server folder and fill it with the following content:
+Clone the repo, create an **.env** file in the server folder and fill it with the following content:
 
 ```bash
 BASE_URL = https://api.teamtailor.com/v1

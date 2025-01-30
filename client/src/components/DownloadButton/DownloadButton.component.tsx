@@ -23,10 +23,9 @@ export const DownloadButton: FC = () => {
   const handleButtonClick = async (): Promise<void> => {
     setStatus(Status.PENDING);
     try {
-      const response = await fetch("http://localhost:4000/api/candidates", {
-        headers: {
-          "Accept-Encoding": "gzip",
-        },
+      const API_URL = "api/candidates";
+      const response = await fetch(API_URL, {
+        headers: { "Accept-Encoding": "gzip" },
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch file. Status: ${response.status}`);
