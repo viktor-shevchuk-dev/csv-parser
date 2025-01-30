@@ -5,10 +5,8 @@
   "main": "src/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "cross-env NODE_ENV=production node dist/server.js",
-    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon --exec 'node dist/server.js'\"",
-    "dev": "nodemon --watch src --exec 'ts-node src/server.ts'",
-    "build": "tsc",
+    "start": "cross-env NODE_ENV=production ts-node dist/server.js",
+    "dev": "cross-env NODE_ENV=development nodemon --watch src --exec 'ts-node src/server.ts'",
     "lint": "eslint ./src",
     "test": "jest",
     "cluster": "pm2 start dist/server.js -i max",
