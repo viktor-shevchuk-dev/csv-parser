@@ -7,7 +7,7 @@ COPY server/package*.json server/
 COPY client/package*.json client/yarn.lock client/
 
 RUN npm run install-client --omit=dev
-RUN npm run install-server
+RUN npm run install-server --omit-dev
 
 COPY client/ client/
 RUN yarn --cwd client build
