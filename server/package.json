@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "start": "cross-env NODE_ENV=production node dist/server.js",
-    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon --delay 2000 --exec 'node dist/server.js'\"",
+    "watch": "concurrently \"tsc -w\" \"cross-env NODE_ENV=development nodemon --exec 'node dist/server.js'\"",
     "build": "tsc",
     "lint": "eslint ./src",
     "test": "jest",
