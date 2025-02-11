@@ -18,7 +18,6 @@ export class CandidatesToCsvTransform extends Transform {
       data: candidates,
       included = [],
       links: { next },
-      meta,
     } = chunk.value;
 
     const jobApplicationsMap: Record<string, JobApplication> = included.reduce(
