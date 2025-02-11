@@ -25,7 +25,7 @@ export const DownloadButton: FC = () => {
     try {
       const API_URL = "http://localhost:4000/api/candidates";
       const response = await fetch(API_URL, {
-        headers: { "Accept-Encoding": "gzip" },
+        headers: { "Accept-Encoding": "br" },
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch file. Status: ${response.status}`);
