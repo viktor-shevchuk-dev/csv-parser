@@ -4,7 +4,6 @@ import { JsonApiResponse, JobApplication } from "../types";
 
 export class CandidatesToCsvTransform extends Transform {
   public static isLastPageProcessed = false;
-  public static recordCount = 0;
 
   constructor(options: TransformOptions = {}) {
     super({ ...options, objectMode: true });
@@ -21,8 +20,6 @@ export class CandidatesToCsvTransform extends Transform {
       links: { next },
       meta,
     } = chunk.value;
-
-    CandidatesToCsvTransform.recordCount = meta["record-count"];
 
     const jobApplicationsMap: Record<string, JobApplication> = included.reduce(
       (map, item) => {
