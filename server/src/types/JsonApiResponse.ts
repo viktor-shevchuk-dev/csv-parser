@@ -1,4 +1,4 @@
-import { Candidate, JobApplication, Meta, Links } from "./";
+import { Candidate, JobApplication, Links } from "./";
 
 export interface JsonApiResponse {
   data: Candidate[];
