@@ -38,6 +38,7 @@ export const DownloadButton: FC = () => {
       link.download = "candidates.csv";
       link.click();
       window.URL.revokeObjectURL(url);
+
       setStatus(Status.RESOLVED);
     } catch (error) {
       if (error instanceof Error) {
@@ -46,7 +47,7 @@ export const DownloadButton: FC = () => {
         toast.error("An unknown error occurred.");
       }
 
-      setStatus(Status.IDLE);
+      setStatus(Status.REJECTED);
     }
   };
 
