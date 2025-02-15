@@ -1,2 +1,2 @@
-export * from "./axiosConfig";
+export * from "./requestConfig";
 export * from "./csvConfig";
