@@ -21,9 +21,9 @@ export const getCandidates = async (
 ): Promise<void> => {
   try {
     const pass = new PassThrough({ objectMode: true });
-    // pass.setMaxListeners(0);
+    pass.setMaxListeners(0);
 
-    const pipelinePromise = pipelineAsync(
+    pipelineAsync(
       pass,
       streamValues(),
       new CandidatesToCsvTransform(),
@@ -34,24 +34,20 @@ export const getCandidates = async (
 
     try {
       let page = 1;
-      while (true) {
+      do {
         const pageStream = await fetchWithThrottling(
           getUrl(page),
           requestConfig
         );
         await pipelineAsync(pageStream, parser(), pass, { end: false });
-
-        if (CandidatesToCsvTransform.isLastPageProcessed) break;
-
         page++;
-      }
+      } while (CandidatesToCsvTransform.next);
     } catch (error) {
       pass.destroy(error as Error);
+      next(error);
     } finally {
       pass.end();
     }
-
-    await pipelinePromise;
   } catch (error) {
     next(error);
   }

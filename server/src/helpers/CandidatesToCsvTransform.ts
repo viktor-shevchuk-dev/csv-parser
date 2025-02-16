@@ -3,7 +3,7 @@ import { Transform, TransformOptions, TransformCallback } from "stream";
 import { JsonApiResponse, JobApplication } from "../types";
 
 export class CandidatesToCsvTransform extends Transform {
-  public static isLastPageProcessed = false;
+  public static next: boolean;
   public static pageCount: number;
 
   constructor(options: TransformOptions = {}) {
@@ -47,7 +47,7 @@ export class CandidatesToCsvTransform extends Transform {
         this.push(transformed);
       });
     });
-    CandidatesToCsvTransform.isLastPageProcessed = !Boolean(next);
+    CandidatesToCsvTransform.next = Boolean(next);
     callback();
   }
 }
