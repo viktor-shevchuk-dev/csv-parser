@@ -33,9 +33,14 @@ export const getCandidates = async (
     );
 
     let page = 1;
-    while (!CandidatesToCsvTransform.isLastPageProcessed) {
+    while (true) {
       const pageStream = await fetchWithThrottling(getUrl(page), requestConfig);
       await pipelineAsync(pageStream, parser(), pass, { end: false });
+
+      if (CandidatesToCsvTransform.isLastPageProcessed) {
+        break;
+      }
+
       page++;
     }
 
