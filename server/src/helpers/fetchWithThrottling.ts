@@ -5,7 +5,6 @@ export const fetchWithThrottling = async (url: string, config: RequestInit) => {
 
   const limitRemaining = headers.get("x-rate-limit-remaining");
   const limitReset = headers.get("x-rate-limit-reset");
-  console.log(headers);
 
   if (Number(limitRemaining) <= 1) {
     const waitMs = Number(limitReset) * 1000;

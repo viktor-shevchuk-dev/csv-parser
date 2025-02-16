@@ -5,10 +5,15 @@ import { pipeline, PassThrough } from "stream";
 import csvWriter from "csv-write-stream";
 import { promisify } from "util";
 import { createBrotliCompress } from "zlib";
-const pipelineAsync = promisify(pipeline);
 
-import { CandidatesToCsvTransform, fetchCandidates } from "../helpers";
-import { csvHeaders } from "../config";
+import {
+  CandidatesToCsvTransform,
+  fetchWithThrottling,
+  getUrl,
+} from "../helpers";
+import { csvHeaders, requestConfig } from "../config";
+
+const pipelineAsync = promisify(pipeline);
 
 export const getCandidates = async (
   res: Response,
@@ -16,21 +21,9 @@ export const getCandidates = async (
 ): Promise<void> => {
   try {
     const pass = new PassThrough({ objectMode: true });
-    pass.setMaxListeners(0);
+    // pass.setMaxListeners(0);
 
-    (async () => {
-      try {
-        for await (const pageStream of fetchCandidates()) {
-          await pipelineAsync(pageStream, parser(), pass, { end: false });
-        }
-      } catch (error) {
-        pass.destroy(error as Error);
-      } finally {
-        pass.end();
-      }
-    })();
-
-    await pipelineAsync(
+    const pipelinePromise = pipelineAsync(
       pass,
       streamValues(),
       new CandidatesToCsvTransform(),
@@ -38,6 +31,17 @@ export const getCandidates = async (
       createBrotliCompress(),
       res
     );
+
+    let page = 1;
+    while (!CandidatesToCsvTransform.isLastPageProcessed) {
+      const pageStream = await fetchWithThrottling(getUrl(page), requestConfig);
+      await pipelineAsync(pageStream, parser(), pass, { end: false });
+      page++;
+    }
+
+    pass.end();
+
+    await pipelinePromise;
   } catch (error) {
     next(error);
   }
