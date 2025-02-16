@@ -18,7 +18,9 @@ export class CandidatesToCsvTransform extends Transform {
       data: candidates,
       included = [],
       links: { next },
+      meta,
     } = chunk.value;
+    const pageCount = meta["page-count"];
 
     const jobApplicationsMap: Record<string, JobApplication> = included.reduce(
       (map, item) => {

@@ -1,25 +1,11 @@
-import { Readable } from "stream";
+import { fetchWithErrorHandling } from "./fetchWithErrorHandling";
 
-export const fetchWithThrottling = async (
-  url: string,
-  config: RequestInit
-): Promise<NodeJS.ReadableStream> => {
-  const response = await fetch(url, config);
-  const { ok, status, body, headers } = response;
-
-  if (!ok) {
-    throw new Error(`HTTP error! status: ${status}`);
-  }
-
-  const webStream = body;
-  if (!webStream) {
-    throw new Error("No response body");
-  }
-
-  const nodeStream = Readable.fromWeb(webStream);
+export const fetchWithThrottling = async (url: string, config: RequestInit) => {
+  const { headers, nodeStream } = await fetchWithErrorHandling(url, config);
 
   const limitRemaining = headers.get("x-rate-limit-remaining");
   const limitReset = headers.get("x-rate-limit-reset");
+  console.log(headers);
 
   if (Number(limitRemaining) <= 1) {
     const waitMs = Number(limitReset) * 1000;
