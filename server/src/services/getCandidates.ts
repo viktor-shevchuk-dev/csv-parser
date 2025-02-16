@@ -32,19 +32,24 @@ export const getCandidates = async (
       res
     );
 
-    let page = 1;
-    while (true) {
-      const pageStream = await fetchWithThrottling(getUrl(page), requestConfig);
-      await pipelineAsync(pageStream, parser(), pass, { end: false });
+    try {
+      let page = 1;
+      while (true) {
+        const pageStream = await fetchWithThrottling(
+          getUrl(page),
+          requestConfig
+        );
+        await pipelineAsync(pageStream, parser(), pass, { end: false });
 
-      if (CandidatesToCsvTransform.isLastPageProcessed) {
-        break;
+        if (CandidatesToCsvTransform.isLastPageProcessed) break;
+
+        page++;
       }
-
-      page++;
+    } catch (error) {
+      pass.destroy(error as Error);
+    } finally {
+      pass.end();
     }
-
-    pass.end();
 
     await pipelinePromise;
   } catch (error) {
