@@ -15,5 +15,5 @@ export const fetchWithErrorHandling = async (
     throw new Error("No response body");
   }
 
-  return { nodeStream: Readable.fromWeb(webStream), headers };
+  return { stream: Readable.fromWeb(webStream), headers };
 };

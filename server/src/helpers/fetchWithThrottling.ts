@@ -4,12 +4,11 @@ export const delay = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export const fetchWithThrottling = async (url: string, config: RequestInit) => {
-  const { headers, nodeStream } = await fetchWithErrorHandling(url, config);
+  const { headers, stream } = await fetchWithErrorHandling(url, config);
 
   const limitRemaining = Number(headers.get("x-rate-limit-remaining"));
   const limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
   const rateLimit = Number(headers.get("x-rate-limit-limit"));
-  // console.log({ limitRemaining });
 
   if (limitRemaining <= 1) {
     const waitMs = limitResetSeconds * 1000;
@@ -17,5 +16,5 @@ export const fetchWithThrottling = async (url: string, config: RequestInit) => {
     await delay(limitResetSeconds);
   }
 
-  return { nodeStream, headers: { rateLimit } };
+  return { data: { stream }, headers: { rateLimit } };
 };

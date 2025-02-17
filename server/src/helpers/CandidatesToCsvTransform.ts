@@ -3,7 +3,7 @@ import { Transform, TransformOptions, TransformCallback } from "stream";
 import { JsonApiResponse, JobApplication } from "../types";
 let test = 0;
 export class CandidatesToCsvTransform extends Transform {
-  public PAGE_COUNT: number = 0;
+  public totalPages: number = 0;
 
   constructor(options: TransformOptions = {}) {
     super({ ...options, objectMode: true });
@@ -20,7 +20,7 @@ export class CandidatesToCsvTransform extends Transform {
       links: { next },
       meta,
     } = chunk.value;
-    this.PAGE_COUNT = chunk.value.meta["page-count"];
+    this.totalPages = chunk.value.meta["page-count"];
     console.log(++test);
 
     const jobApps = new Map<string, JobApplication>(
