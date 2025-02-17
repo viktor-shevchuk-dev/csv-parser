@@ -3,8 +3,7 @@ import { Transform, TransformOptions, TransformCallback } from "stream";
 import { JsonApiResponse, JobApplication } from "../types";
 
 export class CandidatesToCsvTransform extends Transform {
-  public static next: boolean;
-  public static pageCount: number;
+  public pageCount: number = 0;
 
   constructor(options: TransformOptions = {}) {
     super({ ...options, objectMode: true });
@@ -21,7 +20,7 @@ export class CandidatesToCsvTransform extends Transform {
       links: { next },
       meta,
     } = chunk.value;
-    CandidatesToCsvTransform.pageCount = meta["page-count"];
+    this.pageCount = chunk.value.meta["page-count"];
 
     const jobApplicationsMap: Record<string, JobApplication> = included.reduce(
       (map, item) => {
@@ -47,7 +46,6 @@ export class CandidatesToCsvTransform extends Transform {
         this.push(transformed);
       });
     });
-    CandidatesToCsvTransform.next = Boolean(next);
     callback();
   }
 }
