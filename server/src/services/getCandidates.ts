@@ -66,8 +66,8 @@ export const getCandidates = async (
 
     const CONCURRENCY_TEST = 1;
 
-    for (let i = 0; i < pageNumbers.length; i += CONCURRENCY_TEST) {
-      const batch = pageNumbers.slice(i, i + CONCURRENCY_TEST);
+    for (let i = 0; i < pageNumbers.length; i += CONCURRENCY) {
+      const batch = pageNumbers.slice(i, i + CONCURRENCY);
 
       const responses = await Promise.all(
         batch.map((page) =>
