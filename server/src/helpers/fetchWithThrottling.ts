@@ -9,7 +9,7 @@ export const fetchWithThrottling = async (url: string, config: RequestInit) => {
   const limitRemaining = Number(headers.get("x-rate-limit-remaining"));
   const limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
   const rateLimit = Number(headers.get("x-rate-limit-limit"));
-  console.log({ limitRemaining });
+  // console.log({ limitRemaining });
 
   if (limitRemaining <= 1) {
     const waitMs = limitResetSeconds * 1000;
@@ -17,5 +17,5 @@ export const fetchWithThrottling = async (url: string, config: RequestInit) => {
     await delay(limitResetSeconds);
   }
 
-  return { nodeStream, rateLimit };
+  return { nodeStream, headers: { rateLimit } };
 };

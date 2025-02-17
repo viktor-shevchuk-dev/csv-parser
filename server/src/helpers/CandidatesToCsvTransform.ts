@@ -21,7 +21,7 @@ export class CandidatesToCsvTransform extends Transform {
       meta,
     } = chunk.value;
     this.PAGE_COUNT = chunk.value.meta["page-count"];
-    // console.log(++test);
+    console.log(++test);
 
     const jobApps = new Map<string, JobApplication>(
       included.map((item) => [item.id, item])

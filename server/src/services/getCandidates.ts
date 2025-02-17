@@ -23,7 +23,7 @@ export const getCandidates = async (
 ): Promise<void> => {
   try {
     const pass = new PassThrough({ objectMode: true });
-    const js2scv = new CandidatesToCsvTransform();
+    const csvTransform = new CandidatesToCsvTransform();
     pass.setMaxListeners(0);
     const monitor = new Monitor();
 
@@ -31,13 +31,13 @@ export const getCandidates = async (
       console.log({ err }, "pass error");
     });
 
-    let mainPipelinePromise;
+    let outputPipelinePromise;
     try {
-      mainPipelinePromise = pipelineAsync(
+      outputPipelinePromise = pipelineAsync(
         pass,
         streamValues(),
         monitor,
-        js2scv,
+        csvTransform,
         csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
         createBrotliCompress(),
         res
@@ -48,11 +48,13 @@ export const getCandidates = async (
       throw error;
     }
 
-    const { nodeStream: firstPageResponse, rateLimit: CONCURRENCY } =
-      await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
+    const {
+      nodeStream: firstPageStream,
+      headers: { rateLimit: concurrencyLimit },
+    } = await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
 
     try {
-      await pipelineAsync(firstPageResponse, parser(), pass, {
+      await pipelineAsync(firstPageStream, parser(), pass, {
         end: false,
       });
     } catch (error) {
@@ -61,14 +63,12 @@ export const getCandidates = async (
       throw error;
     }
 
-    const { PAGE_COUNT } = js2scv;
+    const { PAGE_COUNT } = csvTransform;
     const pageNumbers = Array.from({ length: PAGE_COUNT - 1 }, (_, i) => i + 2);
 
-    const CONCURRENCY_TEST = 1;
-
-    for (let i = 0; i < pageNumbers.length; i += CONCURRENCY) {
-      const batch = pageNumbers.slice(i, i + CONCURRENCY);
-
+    let i = 0;
+    while (i < pageNumbers.length) {
+      const batch = pageNumbers.slice(i, i + concurrencyLimit);
       const responses = await Promise.all(
         batch.map((page) =>
           fetchWithThrottling(getUrl(page, PAGE_SIZE), REQUEST_CONFIG)
@@ -86,10 +86,12 @@ export const getCandidates = async (
           throw error;
         }
       }
+
+      i += concurrencyLimit;
     }
 
     pass.end();
-    await mainPipelinePromise;
+    await outputPipelinePromise;
   } catch (error) {
     next(error);
   }
