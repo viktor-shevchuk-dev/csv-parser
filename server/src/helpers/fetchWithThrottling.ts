@@ -1,16 +1,20 @@
 import { fetchWithErrorHandling } from "./fetchWithErrorHandling";
 
+export const delay = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 export const fetchWithThrottling = async (url: string, config: RequestInit) => {
   const { headers, nodeStream } = await fetchWithErrorHandling(url, config);
 
-  const limitRemaining = headers.get("x-rate-limit-remaining");
-  const limitReset = headers.get("x-rate-limit-reset");
-  const rateLimit = headers.get("x-rate-limit-limit");
+  const limitRemaining = Number(headers.get("x-rate-limit-remaining"));
+  const limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
+  const rateLimit = Number(headers.get("x-rate-limit-limit"));
+  console.log({ limitRemaining });
 
-  if (Number(limitRemaining) <= 1) {
-    const waitMs = Number(limitReset) * 1000;
+  if (limitRemaining <= 1) {
+    const waitMs = limitResetSeconds * 1000;
     console.log(`Approaching limit. Waiting for ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    await delay(limitResetSeconds);
   }
 
   return { nodeStream, rateLimit };

@@ -13,11 +13,11 @@ export class Monitor extends Transform {
     callback: TransformCallback
   ) {
     const used = process.memoryUsage();
-    console.log(
-      `Processing chunk - Heap Used: ${Math.round(
-        used.heapUsed / 1024 / 1024
-      )} MB`
-    );
+    // console.log(
+    //   `Processing chunk - Heap Used: ${Math.round(
+    //     used.heapUsed / 1024 / 1024
+    //   )} MB`
+    // );
     // console.log(chunk);
     this.push(chunk);
     callback();

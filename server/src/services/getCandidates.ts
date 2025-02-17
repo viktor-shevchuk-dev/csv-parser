@@ -8,6 +8,7 @@ import { createBrotliCompress } from "zlib";
 
 import {
   CandidatesToCsvTransform,
+  delay,
   fetchWithThrottling,
   getUrl,
   Monitor,
@@ -26,36 +27,47 @@ export const getCandidates = async (
     pass.setMaxListeners(0);
     const monitor = new Monitor();
 
-    pipelineAsync(
-      pass,
-      streamValues(),
-      monitor,
-      js2scv,
-      csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
-      createBrotliCompress(),
-      res
-    ).catch((err) => {
-      console.error("Main pipeline error:", err);
+    pass.on("error", (err) => {
+      console.log({ err }, "pass error");
     });
 
-    const { nodeStream: firstPageResponse, rateLimit } =
+    let mainPipelinePromise;
+    try {
+      mainPipelinePromise = pipelineAsync(
+        pass,
+        streamValues(),
+        monitor,
+        js2scv,
+        csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
+        createBrotliCompress(),
+        res
+      );
+    } catch (error) {
+      console.error("Main pipeline error:", error);
+      pass.destroy(error as Error);
+      throw error;
+    }
+
+    const { nodeStream: firstPageResponse, rateLimit: CONCURRENCY } =
       await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
 
-    await pipelineAsync(firstPageResponse, parser(), pass, {
-      end: false,
-    }).catch((err) => {
-      console.error("First page pipeline error:", err);
-    });
+    try {
+      await pipelineAsync(firstPageResponse, parser(), pass, {
+        end: false,
+      });
+    } catch (error) {
+      console.error("First page pipeline error:", error);
+      pass.destroy(error as Error);
+      throw error;
+    }
 
-    const { pageCount } = js2scv;
-    const pageCountTest = 1;
-    const pageNumbers = Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+    const { PAGE_COUNT } = js2scv;
+    const pageNumbers = Array.from({ length: PAGE_COUNT - 1 }, (_, i) => i + 2);
 
-    const concurrency = Number(rateLimit);
-    const concurrencyTest = 1;
+    const CONCURRENCY_TEST = 1;
 
-    for (let i = 0; i < pageNumbers.length; i += concurrency) {
-      const batch = pageNumbers.slice(i, i + concurrency);
+    for (let i = 0; i < pageNumbers.length; i += CONCURRENCY_TEST) {
+      const batch = pageNumbers.slice(i, i + CONCURRENCY_TEST);
 
       const responses = await Promise.all(
         batch.map((page) =>
@@ -64,39 +76,20 @@ export const getCandidates = async (
       );
 
       for (const { nodeStream: res } of responses) {
-        await pipelineAsync(res, parser(), pass, {
-          end: false,
-        }).catch((err) => console.error("Batch page pipeline error:", err));
+        try {
+          await pipelineAsync(res, parser(), pass, {
+            end: false,
+          });
+        } catch (error) {
+          console.error("Batch page pipeline error:", error);
+          pass.destroy(error as Error);
+          throw error;
+        }
       }
     }
 
     pass.end();
-
-    // pipelineAsync(
-    //   pass,
-    //   streamValues(),
-    //   new CandidatesToCsvTransform(),
-    //   csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
-    //   createBrotliCompress(),
-    //   res
-    // );
-
-    // try {
-    //   let page = 1;
-    //   // do {
-    //   const pageStream = await fetchWithThrottling(
-    //     getUrl(page, 1),
-    //     REQUEST_CONFIG
-    //   );
-    //   await pipelineAsync(pageStream, parser(), pass, { end: false });
-    //   page++;
-    //   // } while (CandidatesToCsvTransform.next);
-    // } catch (error) {
-    //   pass.destroy(error as Error);
-    //   next(error);
-    // } finally {
-    //   pass.end();
-    // }
+    await mainPipelinePromise;
   } catch (error) {
     next(error);
   }
