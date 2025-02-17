@@ -1,7 +1,7 @@
 import { Transform, TransformOptions, TransformCallback } from "stream";
 
 import { JsonApiResponse, JobApplication } from "../types";
-
+let test = 0;
 export class CandidatesToCsvTransform extends Transform {
   public pageCount: number = 0;
 
@@ -21,18 +21,18 @@ export class CandidatesToCsvTransform extends Transform {
       meta,
     } = chunk.value;
     this.pageCount = chunk.value.meta["page-count"];
+    console.log(++test);
 
-    const jobApplicationsMap: Record<string, JobApplication> = included.reduce(
-      (map, item) => {
-        map[item.id] = item;
-        return map;
-      },
-      {} as Record<string, JobApplication>
+    const jobApps = new Map<string, JobApplication>(
+      included.map((item) => [item.id, item])
     );
 
     candidates.forEach((candidate) => {
-      candidate.relationships["job-applications"].data.forEach((jobRef) => {
-        const jobApplication = jobApplicationsMap[jobRef.id];
+      const jobRefs = candidate.relationships["job-applications"].data;
+
+      for (const jobRef of jobRefs) {
+        const jobApplication = jobApps.get(jobRef.id);
+        if (!jobApplication) continue;
 
         const transformed = {
           candidate_id: candidate.id,
@@ -44,7 +44,7 @@ export class CandidatesToCsvTransform extends Transform {
         };
 
         this.push(transformed);
-      });
+      }
     });
     callback();
   }

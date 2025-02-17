@@ -1,4 +1,4 @@
-export const csvHeaders = [
+export const CSV_HEADERS = [
   "candidate_id",
   "first_name",
   "last_name",

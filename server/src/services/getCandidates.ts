@@ -10,8 +10,9 @@ import {
   CandidatesToCsvTransform,
   fetchWithThrottling,
   getUrl,
+  Monitor,
 } from "../helpers";
-import { csvHeaders, requestConfig } from "../config";
+import { CSV_HEADERS, PAGE_SIZE, REQUEST_CONFIG } from "../config";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -22,12 +23,15 @@ export const getCandidates = async (
   try {
     const pass = new PassThrough({ objectMode: true });
     const js2scv = new CandidatesToCsvTransform();
+    pass.setMaxListeners(0);
+    const monitor = new Monitor();
 
     pipelineAsync(
       pass,
       streamValues(),
+      monitor,
       js2scv,
-      csvWriter({ headers: csvHeaders, sendHeaders: true }),
+      csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
       createBrotliCompress(),
       res
     ).catch((err) => {
@@ -35,7 +39,7 @@ export const getCandidates = async (
     });
 
     const { nodeStream: firstPageResponse, rateLimit } =
-      await fetchWithThrottling(getUrl(1, 30), requestConfig);
+      await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
 
     await pipelineAsync(firstPageResponse, parser(), pass, {
       end: false,
@@ -43,33 +47,36 @@ export const getCandidates = async (
       console.error("First page pipeline error:", err);
     });
 
-    const pageNumbers = Array.from(
-      { length: js2scv.pageCount - 1 },
-      (_, i) => i + 2
-    );
-    const responses = await Promise.all(
-      pageNumbers.map((page) =>
-        fetchWithThrottling(getUrl(page, 30), requestConfig)
-      )
-    );
-    for (const { nodeStream: res } of responses) {
-      await pipelineAsync(res, parser(), pass, {
-        end: false,
-      }).catch((err) => {
-        console.error("subs page pipeline error:", err);
-      });
+    const { pageCount } = js2scv;
+    const pageCountTest = 1;
+    const pageNumbers = Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+
+    const concurrency = Number(rateLimit);
+    const concurrencyTest = 1;
+
+    for (let i = 0; i < pageNumbers.length; i += concurrency) {
+      const batch = pageNumbers.slice(i, i + concurrency);
+
+      const responses = await Promise.all(
+        batch.map((page) =>
+          fetchWithThrottling(getUrl(page, PAGE_SIZE), REQUEST_CONFIG)
+        )
+      );
+
+      for (const { nodeStream: res } of responses) {
+        await pipelineAsync(res, parser(), pass, {
+          end: false,
+        }).catch((err) => console.error("Batch page pipeline error:", err));
+      }
     }
 
     pass.end();
-
-    // const pass = new PassThrough({ objectMode: true });
-    // pass.setMaxListeners(0);
 
     // pipelineAsync(
     //   pass,
     //   streamValues(),
     //   new CandidatesToCsvTransform(),
-    //   csvWriter({ headers: csvHeaders, sendHeaders: true }),
+    //   csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
     //   createBrotliCompress(),
     //   res
     // );
@@ -79,7 +86,7 @@ export const getCandidates = async (
     //   // do {
     //   const pageStream = await fetchWithThrottling(
     //     getUrl(page, 1),
-    //     requestConfig
+    //     REQUEST_CONFIG
     //   );
     //   await pipelineAsync(pageStream, parser(), pass, { end: false });
     //   page++;
