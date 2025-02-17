@@ -57,8 +57,8 @@ async function processResponse(
 
 async function processPaginatedRequests(
   totalPages: number,
-  concurrencyLimit: number,
-  pass: PassThrough
+  pass: PassThrough,
+  concurrencyLimit: number = 5
 ) {
   const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
@@ -95,8 +95,8 @@ export const getCandidates = async (
 
     await processPaginatedRequests(
       jsonToCsv.totalPages,
-      concurrencyLimit,
-      pass
+      pass,
+      concurrencyLimit
     );
 
     pass.end();
