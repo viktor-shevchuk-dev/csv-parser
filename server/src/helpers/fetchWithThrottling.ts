@@ -16,5 +16,5 @@ export const fetchWithThrottling = async (url: string, config: RequestInit) => {
     await delay(limitResetSeconds);
   }
 
-  return { data: { stream }, headers: { rateLimit } };
+  return { stream, headers: { rateLimit } };
 };

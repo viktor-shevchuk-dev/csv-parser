@@ -72,9 +72,7 @@ async function processPaginatedRequests(
       )
     );
 
-    for (const {
-      data: { stream },
-    } of responses) {
+    for (const { stream } of responses) {
       await processResponse(stream, pass);
     }
 
@@ -90,7 +88,7 @@ export const getCandidates = async (
     const { pass, jsonToCsv } = createOutputPipeline(res);
 
     const {
-      data: { stream: firstPageStream },
+      stream: firstPageStream,
       headers: { rateLimit: concurrencyLimit },
     } = await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
     await processResponse(firstPageStream, pass);
