@@ -70,10 +70,7 @@ async function processPaginatedRequests(
   }
 }
 
-export const getCandidates = async (
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const getCandidates = async (res: Response): Promise<void> => {
   const { pass, jsonToCsv } = createOutputPipeline(res);
 
   const {
