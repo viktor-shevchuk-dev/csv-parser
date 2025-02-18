@@ -42,19 +42,6 @@ function createOutputPipeline(res: Response) {
   return { pass, jsonToCsv };
 }
 
-async function processResponse(
-  responseStream: NodeJS.ReadableStream,
-  pass: PassThrough
-) {
-  try {
-    await pipelineAsync(responseStream, parser(), pass, { end: false });
-  } catch (error) {
-    console.error("Response processing error:", error);
-    pass.destroy(error as Error);
-    throw error;
-  }
-}
-
 async function processPaginatedRequests(
   totalPages: number,
   pass: PassThrough,
@@ -62,9 +49,12 @@ async function processPaginatedRequests(
 ) {
   const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
-  let i = 0;
-  while (i < pageNumbers.length) {
-    const batch = pageNumbers.slice(i, i + concurrencyLimit);
+  let currentPageIndex = 0;
+  while (currentPageIndex < pageNumbers.length) {
+    const batch = pageNumbers.slice(
+      currentPageIndex,
+      currentPageIndex + concurrencyLimit
+    );
 
     const responses = await Promise.all(
       batch.map((page) =>
@@ -73,10 +63,10 @@ async function processPaginatedRequests(
     );
 
     for (const { stream } of responses) {
-      await processResponse(stream, pass);
+      await pipelineAsync(stream, parser(), pass, { end: false });
     }
 
-    i += concurrencyLimit;
+    currentPageIndex += concurrencyLimit;
   }
 }
 
@@ -84,23 +74,15 @@ export const getCandidates = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { pass, jsonToCsv } = createOutputPipeline(res);
+  const { pass, jsonToCsv } = createOutputPipeline(res);
 
-    const {
-      stream: firstPageStream,
-      headers: { rateLimit: concurrencyLimit },
-    } = await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
-    await processResponse(firstPageStream, pass);
+  const {
+    stream: firstPageStream,
+    headers: { rateLimit: concurrencyLimit },
+  } = await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
+  await pipelineAsync(firstPageStream, parser(), pass, { end: false });
 
-    await processPaginatedRequests(
-      jsonToCsv.totalPages,
-      pass,
-      concurrencyLimit
-    );
+  await processPaginatedRequests(jsonToCsv.totalPages, pass, concurrencyLimit);
 
-    pass.end();
-  } catch (error) {
-    next(error);
-  }
+  pass.end();
 };
