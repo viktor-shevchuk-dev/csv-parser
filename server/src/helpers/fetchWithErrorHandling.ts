@@ -15,5 +15,12 @@ export const fetchWithErrorHandling = async (
     throw new Error("No response body");
   }
 
-  return { stream: Readable.fromWeb(webStream), headers };
+  const limitRemaining = Number(headers.get("x-rate-limit-remaining"));
+  const limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
+  const rateLimit = Number(headers.get("x-rate-limit-limit"));
+
+  return {
+    stream: Readable.fromWeb(webStream),
+    headers: { limitRemaining, limitResetSeconds, rateLimit },
+  };
 };

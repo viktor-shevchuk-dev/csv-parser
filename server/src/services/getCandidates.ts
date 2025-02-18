@@ -56,11 +56,14 @@ async function processPaginatedRequests(
       currentPageIndex + concurrencyLimit
     );
 
-    const responses = await Promise.all(
-      batch.map((page) =>
-        fetchWithThrottling(getUrl(page, PAGE_SIZE), REQUEST_CONFIG)
-      )
-    );
+    // const responses = await Promise.all(
+    //   batch.map((page) =>
+    //     fetchWithThrottling(REQUEST_CONFIG, getUrl(page, PAGE_SIZE))
+    //   )
+    // );
+
+    const urls = batch.map((page) => getUrl(page, PAGE_SIZE));
+    const responses = await fetchWithThrottling(REQUEST_CONFIG, ...urls);
 
     for (const { stream } of responses) {
       await pipelineAsync(stream, parser(), pass, { end: false });
@@ -73,10 +76,12 @@ async function processPaginatedRequests(
 export const getCandidates = async (res: Response): Promise<void> => {
   const { pass, jsonToCsv } = createOutputPipeline(res);
 
-  const {
-    stream: firstPageStream,
-    headers: { rateLimit: concurrencyLimit },
-  } = await fetchWithThrottling(getUrl(1, PAGE_SIZE), REQUEST_CONFIG);
+  const [
+    {
+      stream: firstPageStream,
+      headers: { rateLimit: concurrencyLimit },
+    },
+  ] = await fetchWithThrottling(REQUEST_CONFIG, getUrl(1, PAGE_SIZE));
   await pipelineAsync(firstPageStream, parser(), pass, { end: false });
 
   await processPaginatedRequests(jsonToCsv.totalPages, pass, concurrencyLimit);
