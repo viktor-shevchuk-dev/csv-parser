@@ -8,6 +8,10 @@ export const fetchWithErrorHandling = async (
   const { ok, status, body: webStream, headers } = response;
 
   if (!ok) {
+    if (status === 429) {
+      console.error("Rate limit exceeded.");
+      console.log({ headers });
+    }
     throw new Error(`HTTP error! status: ${status}`);
   }
 
@@ -15,12 +19,5 @@ export const fetchWithErrorHandling = async (
     throw new Error("No response body");
   }
 
-  const limitRemaining = Number(headers.get("x-rate-limit-remaining"));
-  const limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
-  const rateLimit = Number(headers.get("x-rate-limit-limit"));
-
-  return {
-    stream: Readable.fromWeb(webStream),
-    headers: { limitRemaining, limitResetSeconds, rateLimit },
-  };
+  return { stream: Readable.fromWeb(webStream), headers };
 };

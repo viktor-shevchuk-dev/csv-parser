@@ -9,7 +9,9 @@
       "processId": "${command:PickProcess}",
       "request": "attach",
       "skipFiles": ["<node_internals>/**"],
-      "type": "node"
+      "type": "node",
+      "address": "localhost",
+      "port": 9229
     },
     {
       "type": "node",

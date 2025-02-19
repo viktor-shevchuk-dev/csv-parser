@@ -8,6 +8,7 @@ import { createBrotliCompress } from "zlib";
 
 import {
   CandidatesToCsvTransform,
+  delay,
   fetchWithThrottling,
   getUrl,
   Monitor,
@@ -45,46 +46,81 @@ function createOutputPipeline(res: Response) {
 async function processPaginatedRequests(
   totalPages: number,
   pass: PassThrough,
-  concurrencyLimit: number = 5
+  headers: Headers
 ) {
+  let limitRemaining = Number(headers.get("x-rate-limit-remaining"));
+  let limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
+  let rateLimit = Number(headers.get("x-rate-limit-limit"));
+
   const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
   let currentPageIndex = 0;
   while (currentPageIndex < pageNumbers.length) {
+    if (limitRemaining < 1) {
+      const waitMs = limitResetSeconds * 1000;
+      console.log(`Approaching limit. Waiting for ${waitMs}ms`);
+      await delay(waitMs);
+    }
+
+    const concurrency = limitRemaining < 2 ? 1 : limitRemaining;
+    console.log({ limitRemaining, concurrency, limitResetSeconds });
     const batch = pageNumbers.slice(
       currentPageIndex,
-      currentPageIndex + concurrencyLimit
+      currentPageIndex + concurrency
     );
-
-    // const responses = await Promise.all(
-    //   batch.map((page) =>
-    //     fetchWithThrottling(REQUEST_CONFIG, getUrl(page, PAGE_SIZE))
-    //   )
-    // );
 
     const urls = batch.map((page) => getUrl(page, PAGE_SIZE));
     const responses = await fetchWithThrottling(REQUEST_CONFIG, ...urls);
 
+    const minLimit = responses.reduce(
+      (acc, { headers }) => {
+        const currLimitRemaining = Number(
+          headers.get("x-rate-limit-remaining")
+        );
+        return currLimitRemaining > acc.limitRemaining
+          ? acc
+          : {
+              limitRemaining: currLimitRemaining,
+              limitResetSeconds: Number(headers.get("x-rate-limit-reset")),
+            };
+      },
+      { limitRemaining: rateLimit, limitResetSeconds: 10 }
+    );
+
+    limitRemaining = minLimit.limitRemaining;
+    limitResetSeconds = minLimit.limitResetSeconds;
+
     for (const { stream } of responses) {
-      await pipelineAsync(stream, parser(), pass, { end: false });
+      await pipelineAsync(stream, parser(), pass, { end: false }).catch(
+        (error) => {
+          console.error("Pipeline error:", error);
+          pass.destroy(error);
+          throw error;
+        }
+      );
     }
 
-    currentPageIndex += concurrencyLimit;
+    currentPageIndex += concurrency;
   }
 }
 
 export const getCandidates = async (res: Response): Promise<void> => {
   const { pass, jsonToCsv } = createOutputPipeline(res);
 
-  const [
-    {
-      stream: firstPageStream,
-      headers: { rateLimit: concurrencyLimit },
-    },
-  ] = await fetchWithThrottling(REQUEST_CONFIG, getUrl(1, PAGE_SIZE));
-  await pipelineAsync(firstPageStream, parser(), pass, { end: false });
+  const [{ stream: firstPageStream, headers }] = await fetchWithThrottling(
+    REQUEST_CONFIG,
+    getUrl(1, PAGE_SIZE)
+  );
 
-  await processPaginatedRequests(jsonToCsv.totalPages, pass, concurrencyLimit);
+  await pipelineAsync(firstPageStream, parser(), pass, { end: false }).catch(
+    (error) => {
+      console.error("Pipeline error:", error);
+      pass.destroy(error);
+      throw error;
+    }
+  );
+
+  await processPaginatedRequests(jsonToCsv.totalPages, pass, headers);
 
   pass.end();
 };

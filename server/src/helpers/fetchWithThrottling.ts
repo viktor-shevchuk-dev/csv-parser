@@ -12,10 +12,4 @@ export const fetchWithThrottling = async (
   );
 
   return responses;
-
-  // if (limitRemaining <= 1) {
-  //   const waitMs = limitResetSeconds * 1000;
-  //   console.log(`Approaching limit. Waiting for ${waitMs}ms`);
-  //   await delay(limitResetSeconds);
-  // }
 };
