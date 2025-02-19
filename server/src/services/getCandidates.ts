@@ -29,11 +29,7 @@ function createOutputPipeline(res: Response) {
     csvWriter({ headers: CSV_HEADERS, sendHeaders: true }),
     createBrotliCompress(),
     res
-  ).catch((error) => {
-    console.error("Pipeline error:", error);
-    pass.destroy(error);
-    throw error;
-  });
+  );
 
   return { pass, jsonToCsv };
 }
@@ -41,11 +37,11 @@ function createOutputPipeline(res: Response) {
 async function processPaginatedRequests(
   totalPages: number,
   pass: PassThrough,
-  headers: Headers
+  initialHeaders: Headers
 ) {
-  let limitRemaining = Number(headers.get("x-rate-limit-remaining"));
-  let limitResetSeconds = Number(headers.get("x-rate-limit-reset"));
-  let rateLimit = Number(headers.get("x-rate-limit-limit"));
+  let limitRemaining = Number(initialHeaders.get("x-rate-limit-remaining"));
+  let limitResetSeconds = Number(initialHeaders.get("x-rate-limit-reset"));
+  let rateLimit = Number(initialHeaders.get("x-rate-limit-limit"));
 
   const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
