@@ -10,7 +10,6 @@ export const fetchWithErrorHandling = async (
   if (!ok) {
     if (status === 429) {
       console.error("Rate limit exceeded.");
-      console.log({ headers });
     }
     throw new Error(`HTTP error! status: ${status}`);
   }

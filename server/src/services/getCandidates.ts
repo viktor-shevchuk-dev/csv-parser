@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Response } from "express";
 import { parser } from "stream-json";
 import { streamValues } from "stream-json/streamers/StreamValues";
 import { pipeline, PassThrough } from "stream";
@@ -56,13 +56,14 @@ async function processPaginatedRequests(
 
   let currentPageIndex = 0;
   while (currentPageIndex < pageNumbers.length) {
-    if (limitRemaining < 1) {
+    const noWindow = limitRemaining < 1;
+    if (noWindow) {
       const waitMs = limitResetSeconds * 1000;
       console.log(`Approaching limit. Waiting for ${waitMs}ms`);
       await delay(waitMs);
     }
 
-    const concurrency = limitRemaining < 2 ? 1 : limitRemaining;
+    const concurrency = noWindow ? rateLimit : limitRemaining;
     console.log({ limitRemaining, concurrency, limitResetSeconds });
     const batch = pageNumbers.slice(
       currentPageIndex,
@@ -91,13 +92,7 @@ async function processPaginatedRequests(
     limitResetSeconds = minLimit.limitResetSeconds;
 
     for (const { stream } of responses) {
-      await pipelineAsync(stream, parser(), pass, { end: false }).catch(
-        (error) => {
-          console.error("Pipeline error:", error);
-          pass.destroy(error);
-          throw error;
-        }
-      );
+      await pipelineAsync(stream, parser(), pass, { end: false });
     }
 
     currentPageIndex += concurrency;
@@ -112,13 +107,7 @@ export const getCandidates = async (res: Response): Promise<void> => {
     getUrl(1, PAGE_SIZE)
   );
 
-  await pipelineAsync(firstPageStream, parser(), pass, { end: false }).catch(
-    (error) => {
-      console.error("Pipeline error:", error);
-      pass.destroy(error);
-      throw error;
-    }
-  );
+  await pipelineAsync(firstPageStream, parser(), pass, { end: false });
 
   await processPaginatedRequests(jsonToCsv.totalPages, pass, headers);
 
