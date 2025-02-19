@@ -6,23 +6,18 @@ import csvWriter from "csv-write-stream";
 import { promisify } from "util";
 import { createBrotliCompress } from "zlib";
 
-import {
-  CandidatesToCsvTransform,
-  delay,
-  fetchWithThrottling,
-  getUrl,
-  Monitor,
-} from "../helpers";
+import { CandidatesToCsvTransform, getUrl, Monitor } from "../helpers";
 import { CSV_HEADERS, PAGE_SIZE, REQUEST_CONFIG } from "../config";
+import { fetchWithErrorHandling } from "../helpers/fetchWithErrorHandling";
 
 const pipelineAsync = promisify(pipeline);
+
+export const delay = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 function createOutputPipeline(res: Response) {
   const pass = new PassThrough({ objectMode: true });
   pass.setMaxListeners(0);
-  pass.on("error", (err) => {
-    console.log({ err }, "pass error");
-  });
 
   const jsonToCsv = new CandidatesToCsvTransform();
   const monitor = new Monitor();
@@ -54,8 +49,8 @@ async function processPaginatedRequests(
 
   const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
-  let currentPageIndex = 0;
-  while (currentPageIndex < pageNumbers.length) {
+  let processedPages = 0;
+  while (processedPages < pageNumbers.length) {
     const noWindow = limitRemaining < 1;
     if (noWindow) {
       const waitMs = limitResetSeconds * 1000;
@@ -66,12 +61,15 @@ async function processPaginatedRequests(
     const concurrency = noWindow ? rateLimit : limitRemaining;
     console.log({ limitRemaining, concurrency, limitResetSeconds });
     const batch = pageNumbers.slice(
-      currentPageIndex,
-      currentPageIndex + concurrency
+      processedPages,
+      processedPages + concurrency
     );
 
-    const urls = batch.map((page) => getUrl(page, PAGE_SIZE));
-    const responses = await fetchWithThrottling(REQUEST_CONFIG, ...urls);
+    const urls = batch.map((page) =>
+      fetchWithErrorHandling(getUrl(page, PAGE_SIZE), REQUEST_CONFIG)
+    );
+
+    const responses = await Promise.all(urls);
 
     const minLimit = responses.reduce(
       (acc, { headers }) => {
@@ -95,16 +93,16 @@ async function processPaginatedRequests(
       await pipelineAsync(stream, parser(), pass, { end: false });
     }
 
-    currentPageIndex += concurrency;
+    processedPages += concurrency;
   }
 }
 
 export const getCandidates = async (res: Response): Promise<void> => {
   const { pass, jsonToCsv } = createOutputPipeline(res);
 
-  const [{ stream: firstPageStream, headers }] = await fetchWithThrottling(
-    REQUEST_CONFIG,
-    getUrl(1, PAGE_SIZE)
+  const { stream: firstPageStream, headers } = await fetchWithErrorHandling(
+    getUrl(1, PAGE_SIZE),
+    REQUEST_CONFIG
   );
 
   await pipelineAsync(firstPageStream, parser(), pass, { end: false });
