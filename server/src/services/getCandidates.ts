@@ -15,6 +15,8 @@ const pipelineAsync = promisify(pipeline);
 export const delay = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+class RateLimiter {}
+
 function createOutputPipeline(res: Response) {
   const pass = new PassThrough({ objectMode: true });
   pass.setMaxListeners(0);
@@ -34,7 +36,7 @@ function createOutputPipeline(res: Response) {
   return { pass, jsonToCsv };
 }
 
-async function processPaginatedRequests(
+async function fetchRemainingPages(
   totalPages: number,
   pass: PassThrough,
   initialHeaders: Headers
@@ -67,7 +69,7 @@ async function processPaginatedRequests(
 
     const responses = await Promise.all(urls);
 
-    const minLimit = responses.reduce(
+    const minRateLimit = responses.reduce(
       (acc, { headers }) => {
         const currLimitRemaining = Number(
           headers.get("x-rate-limit-remaining")
@@ -82,8 +84,8 @@ async function processPaginatedRequests(
       { limitRemaining: rateLimit, limitResetSeconds: 10 }
     );
 
-    limitRemaining = minLimit.limitRemaining;
-    limitResetSeconds = minLimit.limitResetSeconds;
+    limitRemaining = minRateLimit.limitRemaining;
+    limitResetSeconds = minRateLimit.limitResetSeconds;
 
     for (const { stream } of responses) {
       await pipelineAsync(stream, parser(), pass, { end: false });
@@ -93,9 +95,7 @@ async function processPaginatedRequests(
   }
 }
 
-export const getCandidates = async (res: Response): Promise<void> => {
-  const { pass, jsonToCsv } = createOutputPipeline(res);
-
+async function fetchFirstPage(pass: PassThrough) {
   const { stream: firstPageStream, headers } = await fetchWithErrorHandling(
     getUrl(1, PAGE_SIZE),
     REQUEST_CONFIG
@@ -103,7 +103,15 @@ export const getCandidates = async (res: Response): Promise<void> => {
 
   await pipelineAsync(firstPageStream, parser(), pass, { end: false });
 
-  await processPaginatedRequests(jsonToCsv.totalPages, pass, headers);
+  return headers;
+}
+
+export const getCandidates = async (res: Response) => {
+  const { pass, jsonToCsv } = createOutputPipeline(res);
+
+  const firstPageHeaders = await fetchFirstPage(pass);
+
+  await fetchRemainingPages(jsonToCsv.totalPages, pass, firstPageHeaders);
 
   pass.end();
 };
