@@ -32,66 +32,37 @@ function createOutputPipeline(res: Response) {
 }
 
 class RateLimiter {
-  private limitRemaining: number;
+  public limitRemaining: number;
   private limitResetSeconds: number;
-  private readonly MAX_CONCURRENCY: number;
+  private readonly maxConcurrency: number;
 
   constructor(initialHeaders: Headers) {
     this.limitRemaining = Number(initialHeaders.get("x-rate-limit-remaining"));
     this.limitResetSeconds = Number(initialHeaders.get("x-rate-limit-reset"));
-    this.MAX_CONCURRENCY = Number(initialHeaders.get("x-rate-limit-limit"));
+    this.maxConcurrency = Number(initialHeaders.get("x-rate-limit-limit"));
   }
 
-  async awaitIfNeeded() {
-    const delay = this.limitRemaining < 1;
-    console.log({
-      limitreamning: this.limitRemaining,
-      limitResetSeconds: this.limitResetSeconds,
-    });
-    if (delay) {
-      const delayMs = this.limitResetSeconds * 1000;
-      console.log(`Approaching limit. Waiting for ${delayMs}ms`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+  async handleRateLimit() {
+    const isDelay = this.limitRemaining < 1;
+    if (!isDelay) return;
+
+    const delayMs = this.limitResetSeconds * 1000;
+    console.log(`Approaching limit. Waiting for ${delayMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    this.limitRemaining = this.maxConcurrency;
+  }
+
+  updateFromHeaders(headers: Headers) {
+    const newLimitRemaining = Number(headers.get("x-rate-limit-remaining"));
+    const isNewLimitSmaller = this.limitRemaining > newLimitRemaining;
+
+    if (isNewLimitSmaller) {
+      this.limitRemaining = newLimitRemaining;
+
+      const newLimitResetSeconds = Number(headers.get("x-rate-limit-reset"));
+      this.limitResetSeconds = newLimitResetSeconds;
     }
-  }
-
-  getConcurrency() {
-    const delay = this.limitRemaining < 1;
-    return delay ? this.MAX_CONCURRENCY : this.limitRemaining;
-  }
-
-  update(responses: Array<{ headers: Headers }>) {
-    // const minRateLimit = responses.reduce(
-    //   (acc, { headers }) => {
-    //     const currLimitRemaining = Number(
-    //       headers.get("x-rate-limit-remaining")
-    //     );
-    //     return currLimitRemaining > acc.limitRemaining
-    //       ? acc
-    //       : {
-    //           limitRemaining: currLimitRemaining,
-    //           limitResetSeconds: Number(headers.get("x-rate-limit-reset")),
-    //         };
-    //   },
-    //   { limitRemaining: MAX_CONCURRENCY, limitResetSeconds: 10 }
-    // );
-    // limitRemaining = minRateLimit.limitRemaining;
-    // limitResetSeconds = minRateLimit.limitResetSeconds;
-
-    this.limitRemaining = this.MAX_CONCURRENCY;
-    this.limitResetSeconds = 10;
-
-    responses.forEach(({ headers }) => {
-      const newLimitRemaining = Number(headers.get("x-rate-limit-remaining"));
-      const isNewLimitSmaller = this.limitRemaining > newLimitRemaining;
-
-      if (isNewLimitSmaller) {
-        this.limitRemaining = newLimitRemaining;
-
-        const newLimitResetSeconds = Number(headers.get("x-rate-limit-reset"));
-        this.limitResetSeconds = newLimitResetSeconds;
-      }
-    });
   }
 }
 
@@ -101,9 +72,6 @@ async function fetchRemainingPages(
   initialHeaders: Headers
 ) {
   const rateLimiter = new RateLimiter(initialHeaders);
-  // let limitRemaining = Number(initialHeaders.get("x-rate-limit-remaining"));
-  // let limitResetSeconds = Number(initialHeaders.get("x-rate-limit-reset"));
-  // let MAX_CONCURRENCY = Number(initialHeaders.get("x-rate-limit-limit"));
 
   const remainingPageNumbers = Array.from(
     { length: totalPages - 1 },
@@ -112,18 +80,9 @@ async function fetchRemainingPages(
 
   let processedPages = 0;
   while (processedPages < remainingPageNumbers.length) {
-    // const delay = limitRemaining < 1;
-    // if (delay) {
-    //   const delayMs = limitResetSeconds * 1000;
-    //   console.log(`Approaching limit. Waiting for ${delayMs}ms`);
-    //   await new Promise((resolve) => setTimeout(resolve, delayMs));
-    // }
-    await rateLimiter.awaitIfNeeded();
+    await rateLimiter.handleRateLimit();
 
-    // const concurrency = delay ? MAX_CONCURRENCY : limitRemaining;
-    const concurrency = rateLimiter.getConcurrency();
-    // console.log({ limitRemaining, concurrency, limitResetSeconds });
-    const batchEnd = processedPages + concurrency;
+    const batchEnd = processedPages + rateLimiter.limitRemaining;
     const concurrencyPageNumbers = remainingPageNumbers.slice(
       processedPages,
       batchEnd
@@ -134,14 +93,13 @@ async function fetchRemainingPages(
     );
 
     const responses = await Promise.all(urls);
-
-    rateLimiter.update(responses);
+    responses.forEach(({ headers }) => rateLimiter.updateFromHeaders(headers));
 
     for (const { stream } of responses) {
       await pipelineAsync(stream, parser(), pass, { end: false });
     }
 
-    processedPages += concurrency;
+    processedPages += rateLimiter.limitRemaining;
   }
 }
 
