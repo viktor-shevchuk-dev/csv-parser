@@ -6,9 +6,13 @@ import csvWriter from "csv-write-stream";
 import { promisify } from "util";
 import { createBrotliCompress } from "zlib";
 
-import { CandidatesToCsvTransform, getUrl, Monitor } from "../helpers";
+import {
+  CandidatesToCsvTransform,
+  getUrl,
+  Monitor,
+  fetchWithErrorHandling,
+} from "../helpers";
 import { CSV_HEADERS, PAGE_SIZE, REQUEST_CONFIG } from "../config";
-import { fetchWithErrorHandling } from "../helpers/fetchWithErrorHandling";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -87,6 +91,7 @@ async function fetchRemainingPages(
       processedPages,
       batchEnd
     );
+    processedPages += rateLimiter.limitRemaining;
 
     const urls = concurrencyPageNumbers.map((pageNumber) =>
       fetchWithErrorHandling(getUrl(pageNumber, PAGE_SIZE), REQUEST_CONFIG)
@@ -98,8 +103,6 @@ async function fetchRemainingPages(
     for (const { stream } of responses) {
       await pipelineAsync(stream, parser(), pass, { end: false });
     }
-
-    processedPages += rateLimiter.limitRemaining;
   }
 }
 
