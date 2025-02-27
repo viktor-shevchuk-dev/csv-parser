@@ -8,6 +8,14 @@ import { toast } from "react-toastify";
 
 import { Status } from "types";
 
+const USE_DISK_STREAMING = false;
+
+declare global {
+  interface Window {
+    showSaveFilePicker: (options?: any) => Promise<FileSystemFileHandle>;
+  }
+}
+
 export const DownloadButton: FC = () => {
   const [status, setStatus] = useState(Status.IDLE);
 
@@ -31,18 +39,38 @@ export const DownloadButton: FC = () => {
         throw new Error(`Failed to fetch file. Status: ${response.status}`);
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "candidates.csv";
-      link.click();
-      window.URL.revokeObjectURL(url);
+      if (USE_DISK_STREAMING && "showSaveFilePicker" in window) {
+        const readableStream = response.body;
+        if (!readableStream) {
+          throw new Error("No response body");
+        }
+
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: "candidates.csv",
+        });
+
+        const writableStream = await fileHandle.createWritable();
+
+        await readableStream.pipeTo(writableStream);
+      } else {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "candidates.csv";
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
 
       setStatus(Status.RESOLVED);
     } catch (error) {
       if (error instanceof Error) {
-        toast.error(error.message);
+        if (error.name === "AbortError") {
+          toast.info("Save cancelled by user.");
+        } else {
+          toast.error(error.message);
+        }
       } else {
         toast.error("An unknown error occurred.");
       }
