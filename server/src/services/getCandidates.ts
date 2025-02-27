@@ -12,7 +12,12 @@ import {
   Monitor,
   fetchWithErrorHandling,
 } from "../helpers";
-import { CSV_HEADERS, PAGE_SIZE, REQUEST_CONFIG } from "../config";
+import {
+  CSV_HEADERS,
+  PAGE_SIZE,
+  RATE_LIMIT_HEADERS,
+  REQUEST_CONFIG,
+} from "../config";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -41,9 +46,11 @@ class RateLimiter {
   private readonly maxConcurrency: number;
 
   constructor(initialHeaders: Headers) {
-    this.remaining = Number(initialHeaders.get("x-rate-limit-remaining"));
-    this.resetSeconds = Number(initialHeaders.get("x-rate-limit-reset"));
-    this.maxConcurrency = Number(initialHeaders.get("x-rate-limit-limit"));
+    this.remaining = Number(initialHeaders.get(RATE_LIMIT_HEADERS.REMAINING));
+    this.resetSeconds = Number(
+      initialHeaders.get(RATE_LIMIT_HEADERS.RESET_SECONDS)
+    );
+    this.maxConcurrency = Number(initialHeaders.get(RATE_LIMIT_HEADERS.LIMIT));
   }
 
   async handleRateLimit() {
@@ -58,13 +65,15 @@ class RateLimiter {
   }
 
   updateFromHeaders(headers: Headers) {
-    const newRemaining = Number(headers.get("x-rate-limit-remaining"));
+    const newRemaining = Number(headers.get(RATE_LIMIT_HEADERS.REMAINING));
     const isNewLimitSmaller = this.remaining > newRemaining;
 
     if (isNewLimitSmaller) {
       this.remaining = newRemaining;
 
-      const newResetSeconds = Number(headers.get("x-rate-limit-reset"));
+      const newResetSeconds = Number(
+        headers.get(RATE_LIMIT_HEADERS.RESET_SECONDS)
+      );
       this.resetSeconds = newResetSeconds;
     }
   }
