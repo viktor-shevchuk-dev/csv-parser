@@ -35,6 +35,7 @@ export class CsvTransformer extends Transform {
         const transformed = {
           candidate_id: candidate.id,
           first_name: candidate.attributes["first-name"],
+          // first_name: new Array(1222211).join("-"),
           last_name: candidate.attributes["last-name"],
           email: candidate.attributes.email,
           job_application_id: jobApplication.id,

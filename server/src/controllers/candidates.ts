@@ -8,13 +8,13 @@ const queue = new PQueue({ concurrency: 1 });
 
 const getAll: RequestHandler = async (req, res, next) => {
   await queue.add(async () => {
-    await getCandidates(res);
     res.setHeader("Content-Type", "text/csv");
     res.setHeader(
       "Content-Disposition",
       'attachment; filename="candidates.csv"'
     );
-    res.setHeader("Content-Encoding", "br");
+    // res.setHeader("Content-Encoding", "br");
+    await getCandidates(res);
   });
 };
 
