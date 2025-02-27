@@ -35,7 +35,6 @@ function createOutputPipeline(res: Response) {
   ).catch((err) => {
     console.error("Pipeline failed:", err);
     pass.end();
-    res.end();
     throw err;
   });
 

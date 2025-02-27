@@ -48,7 +48,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
-    "p-queue": "^8.1.0",
+    "p-queue": "^6.6.2",
     "pm2": "^5.4.3",
     "stream-json": "^1.9.1",
     "typescript": "^5.7.3"
