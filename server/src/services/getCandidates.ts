@@ -7,7 +7,7 @@ import { promisify } from "util";
 import { createBrotliCompress } from "zlib";
 
 import {
-  CandidatesToCsvTransform,
+  CsvTransformer,
   getUrl,
   Monitor,
   fetchWithErrorHandling,
@@ -25,7 +25,7 @@ function createOutputPipeline(res: Response) {
   const pass = new PassThrough({ objectMode: true });
   pass.setMaxListeners(0);
 
-  const jsonToCsv = new CandidatesToCsvTransform();
+  const jsonToCsv = new CsvTransformer();
   const monitor = new Monitor();
 
   pipelineAsync(

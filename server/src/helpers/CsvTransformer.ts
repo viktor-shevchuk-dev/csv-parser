@@ -2,7 +2,7 @@ import { Transform, TransformOptions, TransformCallback } from "stream";
 
 import { JsonApiResponse, JobApplication } from "../types";
 let test = 0;
-export class CandidatesToCsvTransform extends Transform {
+export class CsvTransformer extends Transform {
   public totalPages: number = 0;
 
   constructor(options: TransformOptions = {}) {
@@ -20,7 +20,7 @@ export class CandidatesToCsvTransform extends Transform {
       links: { next },
       meta,
     } = chunk.value;
-    this.totalPages = chunk.value.meta["page-count"];
+    this.totalPages = meta["page-count"];
     console.log(++test);
 
     const jobApps = new Map<string, JobApplication>(
@@ -28,9 +28,7 @@ export class CandidatesToCsvTransform extends Transform {
     );
 
     candidates.forEach((candidate) => {
-      const jobRefs = candidate.relationships["job-applications"].data;
-
-      for (const jobRef of jobRefs) {
+      for (const jobRef of candidate.relationships["job-applications"].data) {
         const jobApplication = jobApps.get(jobRef.id);
         if (!jobApplication) continue;
 

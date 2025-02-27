@@ -38,6 +38,8 @@
     "csv-write-stream": "^2.0.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
     "morgan": "^1.10.0",
     "p-queue": "^8.1.0",
     "pm2": "^5.4.3",

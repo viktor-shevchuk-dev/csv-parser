@@ -1,4 +1,4 @@
-export * from "./CandidatesToCsvTransform";
+export * from "./CsvTransformer";
 export * from "./ctrlWrapper";
 export * from "./getUrl";
 export * from "./getQueryParams";
